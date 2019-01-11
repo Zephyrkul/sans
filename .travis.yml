@@ -1,0 +1,15 @@
+dist: xenial
+language: python
+cache: pip
+notifications:
+  email: false
+sudo: true
+
+python:
+  - "3.6.6"
+  - "3.7"
+install:
+  - pip install black
+script:
+  - python -m compileall .
+  - black --check -l 99 -N `git ls-files "*.py"`

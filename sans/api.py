@@ -1,168 +1,253 @@
-import sys
-try:
-    import regex as re
-except ImportError:
-    import re
-from collections import abc
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-from .request import Request
-from .structs import qdict
+import aiohttp
+import asyncio
+import collections
+import contextlib
+import functools
+import zlib
+from collections.abc import Iterable, Mapping
+from enum import Enum
+from lxml import etree
+from types import MappingProxyType
+from typing import Any as _Any, Iterable as _Iterable, Mapping as _Mapping
+from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
+
+from .info import API_URL, AGENT_FMT
+from .lock import ResetLock
+from .objects import Threadsafe, NSElement, NSResponse
+from .utils import get_running_loop
 
 
-__all__ = ["__version__", "__apiversion__", "API"]
-__version__ = "0.1.0a"
-__apiversion__ = "9"
+__all__ = ["Api", "Dumps"]
 
 
-AGENT_FORMAT = "{0} sans/{1} {{}} python/{2[0]}.{2[1]}.{2[2]}"
-SCHEME = "https"
-NETLOC = "www.zephyrkul.info"
-PATH = "/mock-ns/"
-SPLITTER = re.compile(r"[\d\l\u]+")
+def _maybe_threadsafe(func):
+    if not hasattr(Threadsafe, func.__name__):
+        raise RuntimeError("This method cannot be made threadsafe")
+
+    @functools.wraps(func)
+    def decorator(*args, **kwargs):
+        if get_running_loop() == Api.loop:
+            return func(*args, **kwargs)
+        return getattr(Threadsafe(args[0]), func.__name__)(*args[1:], **kwargs)
+
+    return decorator
 
 
-class APIMeta(type):
+def _normalize_dicts(*dicts: _Mapping[str, _Iterable]):
+    final = {}
+    for d in dicts:
+        for k, v in d.items():
+            if not all((k, v)):
+                continue
+            if not isinstance(v, str):
+                v = " ".join(map(str, v))
+            v = unquote_plus(str(v).strip())
+            if not v:
+                continue
+            if k in final:
+                final[k] += " {}".format(v)
+            else:
+                final[k] = v
+    # make read-only
+    return MappingProxyType(final)
 
-    def __new__(cls, name, bases, classdict):
-        # create an _agent if it's not specified
-        if "_agent" not in classdict:
-            classdict["_agent"] = None
-        return super().__new__(cls, name, bases, classdict)
+
+class ApiMeta(type):
+    def __init__(cls, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        cls._agent = None
+        cls._lock = None
+        cls._loop = None
+        cls._session = None
 
     @property
     def agent(cls):
         return cls._agent
 
     @agent.setter
-    def agent(cls, value):
-        cls._agent = AGENT_FORMAT.format(
-            value, __version__, sys.version_info)
-
-
-class API(metaclass=APIMeta):
-
-    def __init__(self, *shards, url: str=None, session=None, **kwargs: str):
-        self._session, self._shards, self._kwargs = None, None, None
-        self(*shards, url=url, session=session, clear=True, **kwargs)
-
-    def __call__(self, *shards, url: str=None, session=None, clear=False, **kwargs: str):
-        self._session = session if session else self._session
-        if len(shards) == 1 and not isinstance(shards[0], str) and isinstance(shards[0], abc.Iterable):
-            shards = tuple(shards[0])
-        if url:
-            kwargs.update(parse_qs(urlparse(url).query))
-            shards += (kwargs.pop("q", ""),)
-        shards = (m.group(0) for m in SPLITTER.finditer(str(shard).lower()) for shard in shards)
-        kwargs = {k.lower(): str(v).lower() for k, v in kwargs.items()}
-        if clear:
-            self._shards = set(shards)
-            self._kwargs = kwargs
-        else:
-            self._shards.update(shards)
-            self._kwargs.update(kwargs)
-        return self
-
-    def __getattribute__(self, name):
-        if name.startswith("_"):
-            return super(API, self).__getattribute__(name)
-        if "__" in name:
-            self._kwargs.update((map(str.lower, name.split("__")),))
-        else:
-            self._shards.update(m.group(0) for m in SPLITTER.finditer(name.lower()))
-        return self
-
-    def __setattr__(self, name, value):
+    def agent(cls, value: str):
         if value:
-            self._kwargs[name.lower()] = str(value).lower()
-        else:
-            del self._kwargs[name.lower()]
+            cls._agent = AGENT_FMT(value)
+
+    @property
+    def loop(cls):
+        if not cls._loop:
+            cls._loop = asyncio.get_event_loop()
+        return cls._loop
+
+    @loop.setter
+    def loop(cls, loop: asyncio.AbstractEventLoop):
+        if cls._loop and cls._loop != loop:
+            raise asyncio.InvalidStateError("Cannot change loop when it's already set!")
+        cls._loop = loop
+
+    @property
+    def lock(cls):
+        if not cls._lock:
+            cls._lock = ResetLock(loop=cls.loop)
+        return cls._lock
+
+    @property
+    def session(cls):
+        if not cls._session:
+            cls._session = aiohttp.ClientSession(
+                loop=cls.loop, raise_for_status=True, response_class=NSResponse
+            )
+        return cls._session
+
+
+class Api(metaclass=ApiMeta):
+    __slots__ = ("__proxy",)
+
+    def __new__(cls, *shards: _Any, **kwargs: str):
+        if len(shards) == 1 and not kwargs:
+            if isinstance(shards[0], cls):
+                return shards[0]
+            with contextlib.suppress(Exception):
+                return cls.from_url(shards[0])
+        dicts = [kwargs] if kwargs else []
+        for shard in filter(bool, shards):
+            if isinstance(shard, Mapping):
+                dicts.append(shard)
+            else:
+                dicts.append({"q": shard})
+        self = super().__new__(cls)
+        self.__proxy = _normalize_dicts(*dicts)
         return self
 
-    def __delattr__(self, name):
-        try:
-            self._shards.remove(name)
-        except KeyError:
-            super(API, self).__delattr__(name)
+    async def __await(self):
+        # pylint: disable=E1133
+        async for element in self.__aiter__(no_clear=True):
+            pass
+        return element
 
-    def __contains__(self, name):
-        return str(name).lower() in self._shards
+    @_maybe_threadsafe
+    def __await__(self):
+        return self.__await().__await__()
 
-    def __getitem__(self, name):
-        return self._kwargs.__getitem__(str(name).lower())
+    @_maybe_threadsafe
+    async def __aiter__(self, *, no_clear: bool = False):
+        if not self.agent:
+            raise RuntimeError("The API's user agent is not yet set.")
+        if not self:
+            # Preempt the request to conserve ratelimit
+            raise ValueError("Bad request")
+        url = str(self)
 
-    def __setitem__(self, name, value):
-        return self._kwargs.__setitem__(str(name).lower(), str(value).lower())
+        parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
+        parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
+        events = parser.read_events()
 
-    def __delitem__(self, name):
-        return self._kwargs.__delitem__(str(name).lower())
+        async with self.session.request(
+            "GET", url, headers={"User-Agent": self.agent}
+        ) as response:
+            yield parser.makeelement("HEADERS", attrib=response.headers)
+            encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+            async for data, _ in response.content.iter_chunks():
+                parser.feed(data.decode(encoding))
+                for _, element in events:
+                    if not no_clear and (
+                        element.getparent() is None or element.getparent().getparent() is not None
+                    ):
+                        continue
+                    yield element
+                    if no_clear:
+                        continue
+                    element.clear()
+                    while element.getprevious() is not None:
+                        del element.getparent()[0]
 
-    def __len__(self):
-        return len(self._query)
+    def __add__(self, other: _Any) -> "Api":
+        if isinstance(other, str):
+            with contextlib.suppress(Exception):
+                other = type(self).from_url(other)
+        with contextlib.suppress(Exception):
+            return type(self)(self, other)
+        return NotImplemented
 
-    def __repr__(self):
-        return "{}.{}(url={!r})".format(self.__module__, type(self).__name__, str(self))
+    def __bool__(self):
+        if any(a in self for a in ("nation", "region")):
+            return True
+        if "a" in self:
+            if self["a"] == "verify" and all(a in self for a in ("nation", "checksum")):
+                return True
+            if self["a"] == "sendtg" and all(a in self for a in ("client", "tgid", "key", "to")):
+                return True
+        return "q" in self
 
-    def __str__(self):
-        return urlunparse((SCHEME, NETLOC, PATH, "", str(self._query), ""))
+    def __contains__(self, key):
+        return key in self.__proxy
 
-    def __eq__(self, other):
-        return isinstance(other, type(self)) and self._query == other._query and self._method == other._method
+    def __dir__(self):
+        return set(super().__dir__()).union(
+            dir(self.__proxy), (a for a in dir(type(self)) if not hasattr(type, a))
+        )
+
+    def __getattr__(self, name):
+        with contextlib.suppress(AttributeError):
+            return getattr(self.__proxy, name)
+        if not hasattr(type, name):
+            return getattr(type(self), name)
+        raise AttributeError
+
+    def __getitem__(self, key):
+        return self.__proxy[str(key).lower()]
 
     def __iter__(self):
-        return Request(str(self), agent=self.__class__.agent, session=self._session, method=self._method)
+        return iter(self.__proxy)
 
-    __aiter__ = __iter__
+    def __len__(self):
+        return len(self.__proxy)
 
-    def _request(self):
-        """Forms an HTTP request to the NationStates or API.
+    def __repr__(self) -> str:
+        return "{}({})".format(
+            type(self).__name__, ", ".join("{}={!r}".format(*t) for t in self.__proxy.items())
+        )
 
-        While this method is synchronous, it returns an asynchronous iterator.
-        So, while you *can* do the following::
+    def __str__(self) -> str:
+        params = [(k, v if isinstance(v, str) else " ".join(v)) for k, v in self.items()]
+        return urlunparse((*API_URL, None, urlencode(params, safe="+"), None))
 
-            request = NS.Nation(...)
+    @property
+    def threadsafe(self):
+        return Threadsafe(self)
 
-        You will still have to use asynchronous iteration to get the actual data::
+    @classmethod
+    def from_url(cls, url: str, *args, **kwargs):
+        parsed_url = urlparse(str(url))
+        url = parsed_url[: len(API_URL)]
+        if any(url) and url != API_URL:
+            raise ValueError("URL must be solely query parameters or an API url")
+        return cls(*args, parse_qs(parsed_url.query), kwargs)
 
-            async for event, result in request:
-                ...
 
-        The actual request will not be opened until it is iterated over; thus you
-        can prepare several requests ahead of time and space out the
-        requests themselves.
+class Dumps(Enum):
+    NATIONS = urlunparse((*API_URL[:2], "/pages/nations.xml.gz", None, None, None))
+    NATION = NATIONS
+    REGIONS = urlunparse((*API_URL[:2], "/pages/regions.xml.gz", None, None, None))
+    REGION = REGIONS
 
-        This wrapper supports the API ratelimit automatically.
+    @_maybe_threadsafe
+    async def __aiter__(self):
+        url = self.value
+        # pylint: disable=E1101
+        tag = self.name.lower().rstrip("s")
 
-        Parameters:
-            *args: The arguments for the specified NationStates API.
-                Any excess args are considered to be no-op shards.
-                Nation: One arg. Specifies the nation to request.
-                Region: One arg. Specifies the region to request.
-                World: Zero args.
-                WA: One arg. Specifies the council to request.
-                Telegram: Four args. client, to, tgid, key.
-                Verification: Two to three args. nation, checksum, token.
-                Dumps: One arg. "nations" or "regions".
+        parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True, tag=tag)
+        parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
+        events = parser.read_events()
+        dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        Keyword Arguments:
-            method: Specifies the HTTP Method. Can be either GET or HEAD.
-            session:
-                The `ClientSession` to use. Defaults to no session.
-            **kwargs: Keyword arguments.
-                If the value is a String, Integer, or Iterable,
-                assume it's a shard keyword parameter.
-                Otherwise, assume it's a shard / processor pair.
-                In the latter case, the iterator will take any XML Elements
-                matching the shard key and pass the Element object into
-                the callable / awaitable and call / await it.
-                If the processor isn't callable / awaitable, for example None,
-                the Request object will yield the Element's text.
-                If no processors are specified, all Elements' texts are yielded.
+        async with Api.session.request("GET", url, headers={"User-Agent": Api.agent}) as response:
+            yield parser.makeelement("HEADERS", attrib=response.headers)
+            async for data, _ in response.content.iter_chunks():
+                parser.feed(dobj.decompress(data))
+                for _, element in events:
+                    yield element
+                    element.clear()
+                    while element.getprevious() is not None:
+                        del element.getparent()[0]
 
-        Returns:
-            An asynchronous iterator.
-
-        Yields:
-            tuple: A tuple with the event (the requested HTML / XML element or
-                other events) and the processed HTML / XML element.
-        """
-        pass
+    @property
+    def threadsafe(self):
+        return Threadsafe(self)
