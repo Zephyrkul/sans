@@ -10,6 +10,8 @@ RATE = collections.namedtuple("RateLimit", ("requests", "block", "rpad", "bpad",
 
 
 class ResetLock(asyncio.Lock):
+    __slots__ = "_xrlrs", "_xra", "_deferred"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._xrlrs = 0
@@ -19,9 +21,7 @@ class ResetLock(asyncio.Lock):
     def __aexit__(self, exc_type, exc, tb):
         if isinstance(exc, aiohttp.ClientResponseError):
             if exc.status == 429:
-                self._xrlrs = 0
-                self._xra = time.time() + exc.headers["X-Retry-After"] + RATE.bpad
-                self.defer()
+                self.xra(exc.headers["X-Retry-After"])
             elif "X-ratelimit-requests-seen" in exc.headers:
                 self.xrlrs(exc.headers["X-ratelimit-requests-seen"])
 
@@ -33,17 +33,29 @@ class ResetLock(asyncio.Lock):
 
     def defer(self):
         self._deferred = True
-        self._loop.call_later(self._xra - time.time(), super().release)
+        self._loop.call_later(self._xra - time.time(), self._release)
 
     def release(self):
         if not self._deferred:
             super().release()
 
+    def _release(self):
+        self._deferred = False
+        super().release()
+
+    def xra(self, xra: int):
+        if not self.locked():
+            raise asyncio.InvalidStateError()
+        xra = int(xra)
+        self._xrlrs = 0
+        self._xra = time.time() + xra + RATE.bpad
+        self.defer()
+
     def xrlrs(self, xrlrs: int):
-        xrlrs = int(xrlrs)
         if not self.locked():
             raise asyncio.InvalidStateError()
         now = time.time()
+        xrlrs = int(xrlrs)
         if self._xra is None or xrlrs < self._xrlrs or self._xra <= now:
             self._xra = now + RATE.block + RATE.bpad
         self._xrlrs = xrlrs

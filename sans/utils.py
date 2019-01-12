@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 from threading import Thread
+from typing import Optional
 
 
 _get_running_loop = getattr(
@@ -8,13 +9,23 @@ _get_running_loop = getattr(
 )
 
 
-def get_running_loop():
+def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
+    """
+    Gets the running event loop without creating a new one.
+
+    Backport of :func:`asyncio.get_running_loop` which doesn't raise.
+    """
     with contextlib.suppress(RuntimeError):
         return _get_running_loop()
     return None
 
 
-def run_in_thread():
+def run_in_thread() -> None:
+    """
+    Runs the API event loop in its own thread.
+
+    Required in order to make synchronous requests.
+    """
     from .api import Api
 
     if Api._loop:

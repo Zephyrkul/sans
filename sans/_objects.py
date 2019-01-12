@@ -11,6 +11,8 @@ from .utils import get_running_loop
 
 
 class Threadsafe:
+    __slots__ = ("api",)
+
     @staticmethod
     def _run_coro_ts(coro):
         from .api import Api
@@ -81,6 +83,9 @@ class NSElement(etree.ElementBase, collections.abc.MutableMapping):
         else:
             e.text = str(value)
 
+    def to_pretty_string(self):
+        return etree.tostring(self, encoding=str, pretty_print=True)
+
 
 class NSResponse(aiohttp.ClientResponse):
     __slots__ = ()
@@ -98,9 +103,12 @@ class NSResponse(aiohttp.ClientResponse):
             for tries in range(5):
                 response = await super().start(conn)
                 with contextlib.suppress(KeyError):
-                    Api.lock.xrlrs(response.headers["X-ratelimit-requests-seen"])
-                if response.status >= 500:
-                    await asyncio.sleep(1 + tries * 2)
+                    lock.xrlrs(response.headers["X-ratelimit-requests-seen"])
+                if response.status == 429:
+                    lock.xra(response.headers["X-Retry-After"])
+                    break
+                elif response.status >= 500:
+                    await asyncio.sleep(1 + tries * 2)  # keep the lock
                 else:
                     break
             return response
@@ -112,3 +120,6 @@ class _NullACM:
 
     async def __aexit__(self, *args):
         pass
+
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: self

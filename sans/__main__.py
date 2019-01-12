@@ -36,10 +36,11 @@ def main():
             continue
         request = Api(request)
         if not request:
-            print("400: Bad Request")
+            print("Bad Request")
             continue
         try:
-            print(etree.tostring(request.threadsafe(), encoding=str, pretty_print=True))
+            for element in request.threadsafe:
+                print(element.to_pretty_string(), end="")
         except Exception as e:
             logging.exception(e)
 

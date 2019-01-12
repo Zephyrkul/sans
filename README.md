@@ -26,6 +26,7 @@ import sans
 from lxml import etree
 
 async def main():
+    sans.Api.agent = "Darcania"
     request = sans.Api(
         "fullname population flag census",
         nation="darcania",
@@ -33,8 +34,13 @@ async def main():
         scale="65 66",
     )
     root = await request
-    pretty = etree.tostring(root, encoding=str, pretty_print=True)
+    pretty = root.to_pretty_string()
     print(pretty)
+
+    request = sans.Dumps.REGIONS
+    async for region in request:
+        pretty = region.to_pretty_string()
+        print(pretty)
 
 
 asyncio.run(main())  # Python 3.7+ only
@@ -47,6 +53,7 @@ from lxml import etree
 
 def main():
     sans.run_in_thread()
+    sans.Api.agent = "Darcania"
     request = sans.Api(
         "fullname population flag census",
         nation="darcania",
@@ -54,8 +61,13 @@ def main():
         scale="65 66",
     )
     root = request.threadsafe()
-    pretty = etree.tostring(root, encoding=str, pretty_print=True)
+    pretty = root.to_pretty_string()
     print(pretty)
+
+    request = sans.Dumps.REGIONS
+    for region in request.threadsafe:
+        pretty = region.to_pretty_string()
+        print(pretty)
 
 
 main()
@@ -63,9 +75,15 @@ main()
 
 ## Command Line
 ```
-python3 -m sans --nation darcania
->>> --nation testlandia
->>> exit
+python3 -m sans --nation darcania census --scale "65 66" --mode score
+User Agent: Darcania
+<NATION>...</NATION>
+>>> --nation testlandia fullname
+<NATION>...</NATION>
+>>> --region "the north pacific" numnations lastupdate
+<REGION>...</REGION>
+>>>
+Exiting...
 ```
 
 ## Requirements
