@@ -15,6 +15,11 @@ def get_version():
     return version
 
 
+def get_requires():
+    with open("requirements.txt") as f:
+        return f.read().splitlines()
+
+
 if __name__ == "__main__":
     setup(
         name="sans",
@@ -28,7 +33,7 @@ if __name__ == "__main__":
         packages=["sans"],
         license="MIT",
         python_requires=">=3.6.0,<3.8",
-        install_requires=["aiohttp==3.4.4", "lxml==4.3.0"],
+        install_requires=get_requires(),
         entry_points={"console_scripts": ["sans=sans.__main__:main"]},
         classifiers=[
             "Development Status :: 4 - Beta",
