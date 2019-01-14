@@ -16,6 +16,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../sans"))
+autodoc_mock_imports = ["lxml"]
 
 
 # -- Project information -----------------------------------------------------
@@ -27,7 +28,7 @@ author = "Zephyrkul"
 # The short X.Y version
 version = ""
 # The full version, including alpha/beta/rc tags
-release = "0.0.1a0"
+release = "0.0.1a1"
 
 
 # -- General configuration ---------------------------------------------------
