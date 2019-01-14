@@ -11,6 +11,26 @@ from .utils import get_running_loop
 
 
 class Threadsafe:
+    """
+    Threadsafe wrapper for :class:`sans.api.Api` objects.
+
+    This may only be run in a seperate thread from the Api loop.
+    This object may be awaited, called, or iterated over.
+    Synchronous and asynchronous iteration is supported.
+
+    Usage::
+
+        sans.run_in_thread()
+
+        darc = await Api(nation="darcania").threadsafe
+        async for shard in Api(nation="testlandia").threadsafe:
+           print(shard.to_pretty_string())
+
+        tnp = Api(region="the_north_pacific").threadsafe()
+        for shard in Api(region="testregionia").threadsafe:
+            print(shard.to_pretty_string())
+    """
+
     __slots__ = ("api",)
 
     @staticmethod
@@ -51,6 +71,14 @@ class Threadsafe:
 
 
 class NSElement(etree.ElementBase, collections.abc.MutableMapping):
+    """
+    LXML Element class that supports MutableMapping methods.
+
+    Because backwards compatibility with my old pynationstates code is too hard otherwise.
+    Item access gets the nth subelement if an `int` is passed, or an element with the specified
+    tag if a `str` is passed. XPATH is also supported.
+    """
+
     __slots__ = ()
 
     def __delitem__(self, key):
@@ -58,9 +86,10 @@ class NSElement(etree.ElementBase, collections.abc.MutableMapping):
         element.getparent().remove(element)
 
     def __getitem__(self, key):
-        with contextlib.suppress(TypeError):
-            return super().__getitem__(key)
-        e = self.find(key)
+        try:
+            e = super().__getitem__(key)
+        except TypeError:
+            e = self.find(key)
         if e is None:
             raise KeyError(key)
         if e.attrib or len(e):
@@ -84,6 +113,9 @@ class NSElement(etree.ElementBase, collections.abc.MutableMapping):
             e.text = str(value)
 
     def to_pretty_string(self):
+        """
+        Returns the base XML as a formatted and indented string.
+        """
         return etree.tostring(self, encoding=str, pretty_print=True)
 
 

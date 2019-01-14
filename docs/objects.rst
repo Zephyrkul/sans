@@ -1,15 +1,15 @@
-sans package
+sans objects
 ============
 
 
 Module contents
 ---------------
 
-.. automodule:: sans.api
+.. autoclass:: sans._objects.Threadsafe
     :members:
     :undoc-members:
 
-.. automodule:: sans.utils
+.. autoclass:: sans._objects.NSElement
     :members:
     :undoc-members:
     :show-inheritance:

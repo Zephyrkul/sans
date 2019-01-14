@@ -11,6 +11,12 @@ Welcome to sans's documentation!
    :caption: Contents:
 
    sans
+   objects
+
+.. autoclass:: sans.api.Api
+    :noindex:
+    :members:
+    :undoc-members:
 
 
 

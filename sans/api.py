@@ -26,6 +26,7 @@ from .utils import get_running_loop
 
 __all__ = ["Api", "Dumps"]
 AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{aiohttp.__version__} sans/{__version__}".format
+API_VERSION = "9"
 
 
 def _normalize_dicts(*dicts: _Mapping[str, _Iterable]):
@@ -43,6 +44,7 @@ def _normalize_dicts(*dicts: _Mapping[str, _Iterable]):
                 final[k] += " {}".format(v)
             else:
                 final[k] = v
+    final.setdefault("v", API_VERSION)
     # make read-only
     return MappingProxyType(final)
 
@@ -90,7 +92,7 @@ class ApiMeta(type):
     @property
     def session(cls) -> aiohttp.ClientSession:
         """The API wrapper's HTTP client session."""
-        if not cls._session:
+        if not cls._session or cls._session.closed:
             cls._session = aiohttp.ClientSession(
                 loop=cls.loop, raise_for_status=True, response_class=NSResponse
             )
@@ -98,15 +100,16 @@ class ApiMeta(type):
 
 
 class Api(metaclass=ApiMeta):
-    """
+    r"""
     Construct and send an NS API request.
     NS API docs can be found here: https://www.nationstates.net/pages/api.html
 
-    Parameters
-    ----------
-    \\*shards: :class:`collections.abc.Iterable`
+    This is a low-level API wrapper. Some attempts will be made to prevent bad requests,
+    but it will not check shards against a verified list.
+
+    \*shards:
         Shards to request from the API.
-    \\*\\*kwargs: :class:`collections.abc.Iterable`
+    \*\*kwargs:
         Query keywords to append to the request, e.g. nation, region.
 
     Api objects may be awaited or asynchronously awaited.
@@ -115,13 +118,18 @@ class Api(metaclass=ApiMeta):
 
     Usage::
 
-    >>> darc = await Api(nation="darcania")
-    >>> tnp = Api(region="the_north_pacific").threadsafe()
+        darc = await Api(nation="darcania")
+        async for shard in Api(nation="testlandia"):
+           print(shard.to_pretty_string())
+
+        tnp = Api(region="the_north_pacific").threadsafe()
+        for shard in Api(region="testregionia").threadsafe:
+            print(shard.to_pretty_string())
     """
 
     __slots__ = ("__proxy",)
 
-    def __new__(cls, *shards: _Iterable, **kwargs: _Iterable):
+    def __new__(cls, *shards: _Iterable[str], **kwargs: _Iterable[str]):
         if len(shards) == 1 and not kwargs:
             if isinstance(shards[0], cls):
                 return shards[0]
@@ -232,7 +240,7 @@ class Api(metaclass=ApiMeta):
     @property
     def threadsafe(self) -> Threadsafe:
         """
-        Returns a threadsafe wrapper around this Api object.
+        Returns a threadsafe wrapper around this object.
 
         The returned wrapper may be called, awaited, or iterated over.
         Both standard and async iteration are supported.
@@ -240,7 +248,7 @@ class Api(metaclass=ApiMeta):
         return Threadsafe(self)
 
     @classmethod
-    def from_url(cls, url: str, *shards: _Iterable, **kwargs: _Iterable) -> "Api":
+    def from_url(cls, url: str, *shards: _Iterable[str], **kwargs: _Iterable[str]) -> "Api":
         """
         Constructs an Api object from a provided URL.
 
@@ -295,7 +303,7 @@ class Dumps(Enum):
     @property
     def threadsafe(self) -> Threadsafe:
         """
-        Returns a threadsafe wrapper around this Api object.
+        Returns a threadsafe wrapper around this object.
 
         The returned wrapper may be iterated over.
         Both standard and async iteration are supported.
