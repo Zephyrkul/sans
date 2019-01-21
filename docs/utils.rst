@@ -1,7 +1,7 @@
-Objects
-=======
+Utilities
+=========
 
-.. automodule:: sans.objects
+.. automodule:: sans.utils
     :members:
     :undoc-members:
     :show-inheritance:

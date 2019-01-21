@@ -16,11 +16,11 @@ from typing import (
     Mapping as _Mapping,
     Optional as _Optional,
 )
-from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse, urlunparse
 
 from .info import API_URL, __version__
+from .objects import Threadsafe, NSElement, NSResponse
 from ._lock import ResetLock
-from ._objects import Threadsafe, NSElement, NSResponse
 from .utils import get_running_loop
 
 
@@ -29,7 +29,28 @@ AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{a
 API_VERSION = "9"
 
 
-def _normalize_dicts(*dicts: _Mapping[str, _Iterable]):
+# Set of keys that should be added to rather than overwritten
+class _Adds:
+    @staticmethod
+    def q(x: str, y: str):
+        return " ".join((x, y))
+
+    scale, mode, filter, tags = q, q, q, q
+
+    @staticmethod
+    def view(x, y):
+        xs, ys = x.split("."), y.split(".")
+        if len(xs) != 1:
+            raise ValueError(f"Malformed view key: {x!r}")
+        if len(ys) != 1:
+            raise ValueError(f"Malformed view key: {y!r}")
+        if xs[0] != ys[0] or len(xs) != 1 or len(ys) != 1:
+            # overwrite
+            return y
+        return "{}.{},{}".format(xs[0], xs[1], ys[1])
+
+
+def _normalize_dicts(*dicts: _Mapping[str, _Iterable[str]]):
     final = {}
     for d in dicts:
         for k, v in d.items():
@@ -37,13 +58,14 @@ def _normalize_dicts(*dicts: _Mapping[str, _Iterable]):
                 continue
             if not isinstance(v, str):
                 v = " ".join(map(str, v))
-            v = unquote_plus(str(v).strip())
+            v = unquote_plus(str(v)).strip().strip("_")
             if not v:
                 continue
             if k in final:
-                final[k] += " {}".format(v)
-            else:
-                final[k] = v
+                with contextlib.suppress(AttributeError, TypeError):
+                    final[k] = getattr(_Adds, k)(final[k], v)
+                    continue
+            final[k] = v
     final.setdefault("v", API_VERSION)
     # make read-only
     return MappingProxyType(final)
@@ -112,7 +134,7 @@ class Api(metaclass=ApiMeta):
     \*\*kwargs:
         Query keywords to append to the request, e.g. nation, region.
 
-    Api objects may be awaited or asynchronously awaited.
+    Api objects may be awaited or asynchronously iterated.
     To perform operations from another thread, use the :attr:`threadsafe` property.
     The Api object itself supports all :class:`collections.abc.Mapping` methods.
 
@@ -160,6 +182,8 @@ class Api(metaclass=ApiMeta):
         if not self:
             # Preempt the request to conserve ratelimit
             raise ValueError("Bad request")
+        if "a" in self and self["a"].lower() == "sendtg":
+            raise RuntimeError("This API wrapper does not support API telegrams.")
         url = str(self)
 
         parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
@@ -279,7 +303,7 @@ class Dumps(Enum):
     REGION = REGIONS
 
     async def __aiter__(self) -> _AsyncGenerator[NSElement, None]:
-        if not self.agent:
+        if not Api.agent:
             raise RuntimeError("The API's user agent is not yet set.")
 
         url = self.value
@@ -297,7 +321,7 @@ class Dumps(Enum):
                 for _, element in events:
                     yield element
                     element.clear()
-                    while element.getprevious() is not None:
+                    while element.getparent() is not None and element.getprevious() is not None:
                         del element.getparent()[0]
 
     @property

@@ -12,7 +12,7 @@ from .utils import get_running_loop
 
 class Threadsafe:
     """
-    Threadsafe wrapper for :class:`sans.api.Api` objects.
+    Threadsafe wrapper for :class:`sans.api.Api` or :class:`sans.api.Dumps` objects.
 
     This may only be run in a seperate thread from the Api loop.
     This object may be awaited, called, or iterated over.
@@ -57,8 +57,9 @@ class Threadsafe:
 
     async def __aiter__(self):
         aiter = self.api.__aiter__()
-        while True:
-            yield (await asyncio.wrap_future(self._run_coro_ts(aiter.__anext__())))
+        with contextlib.suppress(StopAsyncIteration):
+            while True:
+                yield (await asyncio.wrap_future(self._run_coro_ts(aiter.__anext__())))
 
     def __call__(self):
         return self._run_coro_ts(self._wrapper(self.api)).result()
@@ -70,7 +71,9 @@ class Threadsafe:
                 yield self._run_coro_ts(aiter.__anext__()).result()
 
 
-class NSElement(etree.ElementBase, collections.abc.MutableMapping):
+class NSElement(
+    etree.ElementBase, collections.abc.MutableMapping, collections.abc.MutableSequence
+):
     """
     LXML Element class that supports MutableMapping methods.
 
@@ -112,6 +115,8 @@ class NSElement(etree.ElementBase, collections.abc.MutableMapping):
         else:
             e.text = str(value)
 
+    # insert() implemented by ElementBase
+
     def to_pretty_string(self):
         """
         Returns the base XML as a formatted and indented string.
@@ -140,7 +145,8 @@ class NSResponse(aiohttp.ClientResponse):
                     lock.xra(response.headers["X-Retry-After"])
                     break
                 elif response.status >= 500:
-                    await asyncio.sleep(1 + tries * 2)  # keep the lock
+                    # keep the lock
+                    await asyncio.sleep(1 + tries * 2)
                 else:
                     break
             return response

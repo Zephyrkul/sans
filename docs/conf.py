@@ -15,8 +15,8 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../sans"))
-autodoc_mock_imports = ["lxml"]
+sys.path.insert(0, os.path.abspath(".."))
+# autodoc_mock_imports = ["lxml"]
 
 
 # -- Project information -----------------------------------------------------
@@ -25,10 +25,20 @@ project = "sans"
 copyright = "2019, Zephyrkul"
 author = "Zephyrkul"
 
+
+def get_version():
+    import re
+
+    with open("../sans/info.py") as f:
+        return re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(
+            1
+        )
+
+
 # The short X.Y version
 version = ""
 # The full version, including alpha/beta/rc tags
-release = "0.0.1a1"
+release = get_version()
 
 
 # -- General configuration ---------------------------------------------------
@@ -43,6 +53,7 @@ release = "0.0.1a1"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
+    "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
     "sphinx.ext.coverage",

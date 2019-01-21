@@ -1,7 +1,7 @@
-Objects
-=======
+API
+===
 
-.. automodule:: sans.objects
+.. automodule:: sans.api
     :members:
     :undoc-members:
     :show-inheritance:
