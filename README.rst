@@ -1,7 +1,7 @@
 sans
 ====
 
-|pypi| |Code style: black| |Build Status| |Documentation Status| |Coverage Status|
+|pypi| |Code style: black| |Build Status| |Documentation Status|
 
 Synchronous / Asynchronous NationStates (Python wrapper for the
 NationStates API)
@@ -110,5 +110,3 @@ Requirements
    :target: https://travis-ci.com/zephyrkul/sans
 .. |Documentation Status| image:: https://readthedocs.org/projects/sans/badge/?version=latest
    :target: http://sans.readthedocs.org/en/latest/?badge=latest
-.. |Coverage Status| image:: https://coveralls.io/repos/github/zephyrkul/sans/badge.svg?branch=master
-   :target: https://coveralls.io/github/zephyrkul/sans?branch=master
