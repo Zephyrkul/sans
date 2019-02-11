@@ -18,6 +18,20 @@ class Threadsafe:
     This object may be awaited, called, or iterated over.
     Synchronous and asynchronous iteration is supported.
 
+    ================ ============================================================================
+    Operation        Description
+    ================ ============================================================================
+    await x          Make a request to the NS API and returns the root XML element.
+    async for y in x Make a request to the NS API and return each shard element as it is parsed.
+                     Useful for larger requests.
+    x()              Make a request to the NS API and returns the root XML element.
+    for y in x       Make a request to the NS API and return each shard element as it is parsed.
+                     Useful for larger requests.
+    ================ ============================================================================
+
+    Examples
+    --------
+
     Usage::
 
         sans.run_in_thread()
@@ -31,7 +45,7 @@ class Threadsafe:
             print(shard.to_pretty_string())
     """
 
-    __slots__ = ("api",)
+    __slots__ = ("_api",)
 
     @staticmethod
     def _run_coro_ts(coro):
@@ -50,22 +64,22 @@ class Threadsafe:
         return await awaitable
 
     def __init__(self, api):
-        self.api = api
+        self._api = api
 
     def __await__(self):
-        return asyncio.wrap_future(self._run_coro_ts(self._wrapper(self.api))).__await__()
+        return asyncio.wrap_future(self._run_coro_ts(self._wrapper(self._api))).__await__()
 
     async def __aiter__(self):
-        aiter = self.api.__aiter__()
+        aiter = self._api.__aiter__()
         with contextlib.suppress(StopAsyncIteration):
             while True:
                 yield (await asyncio.wrap_future(self._run_coro_ts(aiter.__anext__())))
 
     def __call__(self):
-        return self._run_coro_ts(self._wrapper(self.api)).result()
+        return self._run_coro_ts(self._wrapper(self._api)).result()
 
     def __iter__(self):
-        aiter = self.api.__aiter__()
+        aiter = self._api.__aiter__()
         with contextlib.suppress(StopAsyncIteration):
             while True:
                 yield self._run_coro_ts(aiter.__anext__()).result()
@@ -75,49 +89,84 @@ class NSElement(
     etree.ElementBase, collections.abc.MutableMapping, collections.abc.MutableSequence
 ):
     """
-    LXML Element class that supports MutableMapping methods.
+    LXML Element class that supports MutableMapping and MutableSequence methods.
 
     Because backwards compatibility with my old pynationstates code is too hard otherwise.
+
     Item access gets the nth subelement if an `int` is passed, or an element with the specified
     tag if a `str` is passed. XPATH is also supported.
+    The subelement will be converted to common data types if they can be:
+
+    ========================================================================== ==================
+    Element                                                                    Return Type
+    ========================================================================== ==================
+    Element does not exist.                                                    `IndexError` or
+                                                                               `KeyError`
+    <ELEMENT />                                                                `NoneType`
+    <ELEMENT attrs="attr" />                                                   `dict`
+    <ELEMENT>#</ELEMENT> (# is a number)                                       `int` or `float`
+    <ELEMENT>data</ELEMENT>                                                    `str`
+    <ELEMENT><ANY_SUBELEMENT /></ELEMENT>                                      :class:`NSElement`
+    <ELEMENT attrs="attr">data</ELEMENT>                                       :class:`NSElement`
+    ========================================================================== ==================
+
+    :meth:`get_element` may be used to get subelements without autoconverting to common data types.
     """
 
     __slots__ = ()
 
     def __delitem__(self, key):
-        element = self[key]
+        element = self.get_element(key)
         element.getparent().remove(element)
 
     def __getitem__(self, key):
-        try:
-            e = super().__getitem__(key)
-        except TypeError:
-            e = self.find(key)
-        if e is None:
-            raise KeyError(key)
-        if e.attrib or len(e):
+        e = self.get_element(key)
+        if len(e):
             return e
+        if e.attrib and e.text:
+            return e
+        if e.attrib:
+            return e.attrib
+        if not e.text:
+            return None
+        for t in (int, float):
+            with contextlib.suppress(ValueError):
+                return t(e.text)
         return e.text
 
     def __iter__(self):
-        return (e.tag for e in self.iterchildren())
+        for e in self.iterchildren():
+            yield e.tag
 
     # __len__ implemented by ElementBase
 
     def __setitem__(self, key, value):
         with contextlib.suppress(TypeError):
             return super().__setitem__(key, value)
-        e = self.find(key)
-        if e is None:
-            raise KeyError(key)
+        e = self.get_element(key)
         if isinstance(value, collections.abc.Mapping):
             e.attrib = value
         else:
             e.text = str(value)
 
+    def __str__(self):
+        return etree.tostring(self, encoding=str)
+
     # insert() implemented by ElementBase
 
-    def to_pretty_string(self):
+    def get_element(self, key: str) -> "NSElement":
+        """
+        Gets a subelement as :meth:`__getitem__`, but without autoconverting it into other data types.
+        """
+        try:
+            e = super().__getitem__(key)
+        except TypeError:
+            e = self.find(key)
+        if e is None:
+            raise KeyError(key)
+        return e
+
+    def to_pretty_string(self) -> str:
         """
         Returns the base XML as a formatted and indented string.
         """
@@ -159,5 +208,8 @@ class _NullACM:
     async def __aexit__(self, *args):
         pass
 
+    def __call__(self, *args, **kwargs):
+        return self
+
     def __getattr__(self, name):
-        return lambda *args, **kwargs: self
+        return self

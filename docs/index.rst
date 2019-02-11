@@ -5,6 +5,7 @@ Table of Contents
    api
    utils
    objects
+   errors
 
 
 .. include:: ../README.rst

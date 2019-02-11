@@ -26,19 +26,12 @@ copyright = "2019, Zephyrkul"
 author = "Zephyrkul"
 
 
-def get_version():
-    import re
-
-    with open("../sans/info.py") as f:
-        return re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(
-            1
-        )
-
+from sans import __version__, version_info
 
 # The short X.Y version
-version = ""
+version = ".".join(map(str, version_info.version[:2]))
 # The full version, including alpha/beta/rc tags
-release = get_version()
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -56,6 +49,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
+    "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
 ]

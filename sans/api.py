@@ -18,10 +18,11 @@ from typing import (
 )
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse, urlunparse
 
+from .errors import HTTPException, BadRequest
 from .info import API_URL, __version__
 from .objects import Threadsafe, NSElement, NSResponse
-from ._lock import ResetLock
 from .utils import get_running_loop
+from ._lock import ResetLock
 
 
 __all__ = ["Api", "Dumps"]
@@ -41,9 +42,9 @@ class _Adds:
     def view(x, y):
         xs, ys = x.split("."), y.split(".")
         if len(xs) != 1:
-            raise ValueError(f"Malformed view key: {x!r}")
+            raise ValueError()
         if len(ys) != 1:
-            raise ValueError(f"Malformed view key: {y!r}")
+            raise ValueError()
         if xs[0] != ys[0] or len(xs) != 1 or len(ys) != 1:
             # overwrite
             return y
@@ -129,14 +130,35 @@ class Api(metaclass=ApiMeta):
     This is a low-level API wrapper. Some attempts will be made to prevent bad requests,
     but it will not check shards against a verified list.
 
-    \*shards:
-        Shards to request from the API.
-    \*\*kwargs:
-        Query keywords to append to the request, e.g. nation, region.
-
     Api objects may be awaited or asynchronously iterated.
     To perform operations from another thread, use the :attr:`threadsafe` property.
     The Api object itself supports all :class:`collections.abc.Mapping` methods.
+
+    ================ ============================================================================
+    Operation        Description
+    ================ ============================================================================
+    await x          Make a request to the NS API and returns the root XML element.
+    async for y in x Make a request to the NS API and return each shard element as it is parsed.
+                     Useful for larger requests.
+    x + y            Combines two :class:`Api` objects together into a new one.
+                     Shard keywords that can't be combined will be overwritten with y's data.
+    bool(x)          Naïvely check if this :class:`Api` object would result in a 400 Bad Request.
+                     Truthy :class:`Api` objects may still result in a 400 Bad Request.
+                     Use `len(x)` to check for containment.
+    str(x)           Return the URL this :class:`Api` object will make a request to.
+    Other            All other :class:`collections.abc.Mapping` methods, except x == y,
+                     are also supported.
+    ================ ============================================================================
+
+    Parameters
+    ----------
+    \*shards: str
+        Shards to request from the API.
+    \*\*parameters: str
+        Query parameters to append to the request, e.g. nation, scale.
+
+    Examples
+    --------
 
     Usage::
 
@@ -151,13 +173,13 @@ class Api(metaclass=ApiMeta):
 
     __slots__ = ("__proxy",)
 
-    def __new__(cls, *shards: _Iterable[str], **kwargs: _Iterable[str]):
-        if len(shards) == 1 and not kwargs:
+    def __new__(cls, *shards: _Iterable[str], **parameters: _Iterable[str]):
+        if len(shards) == 1 and not parameters:
             if isinstance(shards[0], cls):
                 return shards[0]
             with contextlib.suppress(Exception):
                 return cls.from_url(shards[0])
-        dicts = [kwargs] if kwargs else []
+        dicts = [parameters] if parameters else []
         for shard in filter(bool, shards):
             if isinstance(shard, Mapping):
                 dicts.append(shard)
@@ -179,34 +201,38 @@ class Api(metaclass=ApiMeta):
     async def __aiter__(self, *, no_clear: bool = False) -> _AsyncGenerator[NSElement, None]:
         if not self.agent:
             raise RuntimeError("The API's user agent is not yet set.")
-        if not self:
-            # Preempt the request to conserve ratelimit
-            raise ValueError("Bad request")
         if "a" in self and self["a"].lower() == "sendtg":
             raise RuntimeError("This API wrapper does not support API telegrams.")
+        if not self:
+            # Preempt the request to conserve ratelimit
+            raise BadRequest()
         url = str(self)
 
         parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
         parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
         events = parser.read_events()
 
-        async with self.session.request(
-            "GET", url, headers={"User-Agent": self.agent}
-        ) as response:
-            encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
-            async for data, _ in response.content.iter_chunks():
-                parser.feed(data.decode(encoding))
-                for _, element in events:
-                    if not no_clear and (
-                        element.getparent() is None or element.getparent().getparent() is not None
-                    ):
-                        continue
-                    yield element
-                    if no_clear:
-                        continue
-                    element.clear()
-                    while element.getprevious() is not None:
-                        del element.getparent()[0]
+        try:
+            async with self.session.request(
+                "GET", url, headers={"User-Agent": self.agent}
+            ) as response:
+                encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+                async for data, _ in response.content.iter_chunks():
+                    parser.feed(data.decode(encoding))
+                    for _, element in events:
+                        if not no_clear and (
+                            element.getparent() is None
+                            or element.getparent().getparent() is not None
+                        ):
+                            continue
+                        yield element
+                        if no_clear:
+                            continue
+                        element.clear()
+                        while element.getprevious() is not None:
+                            del element.getparent()[0]
+        except aiohttp.ClientResponseError as cre:
+            raise HTTPException(cre) from cre
 
     def __add__(self, other: _Any) -> "Api":
         if isinstance(other, str):
@@ -272,18 +298,18 @@ class Api(metaclass=ApiMeta):
         return Threadsafe(self)
 
     @classmethod
-    def from_url(cls, url: str, *shards: _Iterable[str], **kwargs: _Iterable[str]) -> "Api":
+    def from_url(cls, url: str, *shards: _Iterable[str], **parameters: _Iterable[str]) -> "Api":
         """
         Constructs an Api object from a provided URL.
 
-        The Api object may be further modified with shards and kwargs,
+        The Api object may be further modified with shards and parameters,
         as per the :class:`Api` constructor.
         """
         parsed_url = urlparse(str(url))
         url = parsed_url[: len(API_URL)]
         if any(url) and url != API_URL:
             raise ValueError("URL must be solely query parameters or an API url")
-        return cls(*shards, parse_qs(parsed_url.query), kwargs)
+        return cls(*shards, parse_qs(parsed_url.query), parameters)
 
 
 class Dumps(Enum):
@@ -315,14 +341,21 @@ class Dumps(Enum):
         events = parser.read_events()
         dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        async with Api.session.request("GET", url, headers={"User-Agent": Api.agent}) as response:
-            async for data, _ in response.content.iter_chunks():
-                parser.feed(dobj.decompress(data))
-                for _, element in events:
-                    yield element
-                    element.clear()
-                    while element.getparent() is not None and element.getprevious() is not None:
-                        del element.getparent()[0]
+        try:
+            async with Api.session.request(
+                "GET", url, headers={"User-Agent": Api.agent}
+            ) as response:
+                async for data, _ in response.content.iter_chunks():
+                    parser.feed(dobj.decompress(data))
+                    for _, element in events:
+                        yield element
+                        element.clear()
+                        while (
+                            element.getparent() is not None and element.getprevious() is not None
+                        ):
+                            del element.getparent()[0]
+        except aiohttp.ClientResponseError as cre:
+            raise HTTPException(cre) from cre
 
     @property
     def threadsafe(self) -> Threadsafe:
