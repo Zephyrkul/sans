@@ -1,8 +1,16 @@
+version: 2
+
+formats:
+  - pdf
+
 build:
   image: latest
 
 python:
-  version: 3.6
-  pip_install: true
-  extra_requirements:
-    - docs
+  version: 3.7
+  install:
+    - requirements: requirements.txt
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
