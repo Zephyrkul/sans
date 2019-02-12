@@ -85,14 +85,13 @@ Command Line
 
 ::
 
-   python3 -m sans --nation darcania census --scale "65 66" --mode score
-   User Agent: Darcania
+   python3 -m sans --nation darcania census --scale "65 66" --mode score --agent Darcania
    <NATION>...</NATION>
    >>> --nation testlandia fullname
    <NATION>...</NATION>
    >>> --region "the north pacific" numnations lastupdate
    <REGION>...</REGION>
-   >>>
+   >>> --quit
    Exiting...
 
 Requirements
