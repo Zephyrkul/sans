@@ -57,7 +57,7 @@ def _normalize_dicts(*dicts: _Mapping[str, _Iterable[str]]):
         for k, v in d.items():
             if not all((k, v)):
                 continue
-            if not isinstance(v, str):
+            if not isinstance(v, str) and isinstance(v, Iterable):
                 v = " ".join(map(str, v))
             v = unquote_plus(str(v)).strip().strip("_")
             if not v:
@@ -68,8 +68,7 @@ def _normalize_dicts(*dicts: _Mapping[str, _Iterable[str]]):
                     continue
             final[k] = v
     final.setdefault("v", API_VERSION)
-    # make read-only
-    return MappingProxyType(final)
+    return final
 
 
 class ApiMeta(type):
@@ -186,7 +185,7 @@ class Api(metaclass=ApiMeta):
             else:
                 dicts.append({"q": shard})
         self = super().__new__(cls)
-        self.__proxy = _normalize_dicts(*dicts)
+        self.__proxy = MappingProxyType(_normalize_dicts(*dicts))
         return self
 
     async def __await(self):
@@ -212,27 +211,23 @@ class Api(metaclass=ApiMeta):
         parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
         events = parser.read_events()
 
-        try:
-            async with self.session.request(
-                "GET", url, headers={"User-Agent": self.agent}
-            ) as response:
-                encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
-                async for data, _ in response.content.iter_chunks():
-                    parser.feed(data.decode(encoding))
-                    for _, element in events:
-                        if not no_clear and (
-                            element.getparent() is None
-                            or element.getparent().getparent() is not None
-                        ):
-                            continue
-                        yield element
-                        if no_clear:
-                            continue
-                        element.clear()
-                        while element.getprevious() is not None:
-                            del element.getparent()[0]
-        except aiohttp.ClientResponseError as cre:
-            raise HTTPException(cre) from cre
+        async with self.session.request(
+            "GET", url, headers={"User-Agent": self.agent}
+        ) as response:
+            encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+            async for data, _ in response.content.iter_chunks():
+                parser.feed(data.decode(encoding))
+                for _, element in events:
+                    if not no_clear and (
+                        element.getparent() is None or element.getparent().getparent() is not None
+                    ):
+                        continue
+                    yield element
+                    if no_clear:
+                        continue
+                    element.clear()
+                    while element.getprevious() is not None:
+                        del element.getparent()[0]
 
     def __add__(self, other: _Any) -> "Api":
         if isinstance(other, str):
@@ -341,21 +336,14 @@ class Dumps(Enum):
         events = parser.read_events()
         dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        try:
-            async with Api.session.request(
-                "GET", url, headers={"User-Agent": Api.agent}
-            ) as response:
-                async for data, _ in response.content.iter_chunks():
-                    parser.feed(dobj.decompress(data))
-                    for _, element in events:
-                        yield element
-                        element.clear()
-                        while (
-                            element.getparent() is not None and element.getprevious() is not None
-                        ):
-                            del element.getparent()[0]
-        except aiohttp.ClientResponseError as cre:
-            raise HTTPException(cre) from cre
+        async with Api.session.request("GET", url, headers={"User-Agent": Api.agent}) as response:
+            async for data, _ in response.content.iter_chunks():
+                parser.feed(dobj.decompress(data))
+                for _, element in events:
+                    yield element
+                    element.clear()
+                    while element.getparent() is not None and element.getprevious() is not None:
+                        del element.getparent()[0]
 
     @property
     def threadsafe(self) -> Threadsafe:

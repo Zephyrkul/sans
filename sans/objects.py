@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from .info import API_URL
 from .utils import get_running_loop
+from .errors import HTTPException
 
 
 class Threadsafe:
@@ -49,6 +50,7 @@ class Threadsafe:
 
     @staticmethod
     def _run_coro_ts(coro):
+        # pylint: disable=F0401
         from .api import Api
 
         if not Api._loop or not Api._loop.is_running():
@@ -177,6 +179,7 @@ class NSResponse(aiohttp.ClientResponse):
     __slots__ = ()
 
     async def start(self, conn):
+        # pylint: disable=F0401
         from .api import Api
 
         if urlparse(str(self.real_url))[: len(API_URL)] != API_URL:
@@ -199,6 +202,12 @@ class NSResponse(aiohttp.ClientResponse):
                 else:
                     break
             return response
+
+    def raise_for_status(self, *args, **kwargs):
+        try:
+            return super().raise_for_status(*args, **kwargs)
+        except aiohttp.ClientResponseError as cre:
+            raise HTTPException(cre) from cre
 
 
 class _NullACM:

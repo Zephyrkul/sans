@@ -1,12 +1,11 @@
-import aiohttp
 import argparse
-import asyncio
 import logging
 import shlex
 import sys
-from lxml import etree
 
-from sans import Api, HTTPException, run_in_thread, __version__
+import sans
+from sans.api import Api
+from sans.errors import HTTPException
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ def main():
         prog="sans",
         epilog="Any unknown args will be used to build the API request.",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s " + __version__)
+    parser.add_argument("--version", action="version", version="%(prog)s " + sans.__version__)
     parser.add_argument("--agent", help="set the script's user agent")
     parser.add_argument(
         "--quit", action="store_true", help="quit the console program loop after this run"
@@ -28,7 +27,7 @@ def main():
     known, unknown = parser.parse_known_args()
     if not any(vars(known).values()):
         parser.print_help(sys.stderr)
-    run_in_thread()
+    sans.run_in_thread()
     if known.quit and not unknown:
         return print("Okay I'll just leave I guess...", file=sys.stderr)
     Api.agent = known.agent or input("User agent: ")

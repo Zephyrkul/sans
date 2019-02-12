@@ -29,11 +29,11 @@ Asynchronous
 
    import asyncio
    import sans
-   from lxml import etree
+   from sans.api import Api, Dumps
 
    async def main():
-       sans.Api.agent = "Darcania"
-       request = sans.Api(
+       Api.agent = "Darcania"
+       request = Api(
            "fullname population flag census",
            nation="darcania",
            mode="score",
@@ -43,7 +43,7 @@ Asynchronous
        pretty = root.to_pretty_string()
        print(pretty)
 
-       request = sans.Dumps.REGIONS
+       request = Dumps.REGIONS
        async for region in request:
            pretty = region.to_pretty_string()
            print(pretty)
@@ -57,12 +57,12 @@ Synchronous
 .. code:: py
 
    import sans
-   from lxml import etree
+   from sans.api import Api, Dumps
 
    def main():
        sans.run_in_thread()
-       sans.Api.agent = "Darcania"
-       request = sans.Api(
+       Api.agent = "Darcania"
+       request = Api(
            "fullname population flag census",
            nation="darcania",
            mode="score",
@@ -72,7 +72,7 @@ Synchronous
        pretty = root.to_pretty_string()
        print(pretty)
 
-       request = sans.Dumps.REGIONS
+       request = Dumps.REGIONS
        for region in request.threadsafe:
            pretty = region.to_pretty_string()
            print(pretty)

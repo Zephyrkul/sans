@@ -26,7 +26,7 @@ copyright = "2019, Zephyrkul"
 author = "Zephyrkul"
 
 
-from sans import __version__, version_info
+from sans.info import __version__, version_info
 
 # The short X.Y version
 version = ".".join(map(str, version_info.version[:2]))
