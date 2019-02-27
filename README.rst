@@ -6,6 +6,13 @@ sans
 Synchronous / Asynchronous NationStates (Python wrapper for the
 NationStates API)
 
+Note
+~~~~
+While this library can be run in a single-threaded, synchronous environment,
+it is highly recommended to use Dolph's pynationstates
+(`GitHub <https://github.com/DolphDev/pynationstates>`_
+| `PyPI <https://pypi.org/project/nationstates/>`_) for simpler scripts.
+
 Installing
 ----------
 
@@ -87,11 +94,11 @@ Command Line
 
    python3 -m sans --nation darcania census --scale "65 66" --mode score --agent Darcania
    <NATION>...</NATION>
-   >>> --nation testlandia fullname
+   sans --nation testlandia fullname
    <NATION>...</NATION>
-   >>> --region "the north pacific" numnations lastupdate
+   sans --region "the north pacific" numnations lastupdate
    <REGION>...</REGION>
-   >>> --quit
+   sans --quit
    Exiting...
 
 Requirements

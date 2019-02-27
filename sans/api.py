@@ -75,7 +75,7 @@ class ApiMeta(type):
     def __init__(cls, *args, **kwargs):
         super().__init__(*args, **kwargs)
         cls._agent = None
-        cls._lock = None
+        cls.__lock = None
         cls._loop = None
         cls._session = None
 
@@ -105,11 +105,11 @@ class ApiMeta(type):
         cls._loop = loop
 
     @property
-    def lock(cls) -> ResetLock:
+    def _lock(cls) -> ResetLock:
         """The API wrapper's rate-limiting lock."""
-        if not cls._lock:
-            cls._lock = ResetLock(loop=cls.loop)
-        return cls._lock
+        if not cls.__lock:
+            cls.__lock = ResetLock(loop=cls.loop)
+        return cls.__lock
 
     @property
     def session(cls) -> aiohttp.ClientSession:
@@ -119,6 +119,18 @@ class ApiMeta(type):
                 loop=cls.loop, raise_for_status=True, response_class=NSResponse
             )
         return cls._session
+
+    @property
+    def xra(cls) -> _Optional[float]:
+        if cls.__lock:
+            return cls.__lock.xra
+        return None
+
+    @property
+    def xrlrs(cls) -> int:
+        if cls.__lock:
+            return cls.__lock.xrlrs
+        return 0
 
 
 class Api(metaclass=ApiMeta):

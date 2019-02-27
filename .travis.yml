@@ -12,4 +12,4 @@ install:
   - pip install black
 script:
   - python -m compileall .
-  - black --check -l 99 `git ls-files "*.py"`
+  - black --check `git ls-files "*.py"`

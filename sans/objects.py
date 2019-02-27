@@ -4,6 +4,7 @@ import collections
 import contextlib
 from concurrent.futures import Future
 from lxml import etree
+from typing import Union
 from urllib.parse import urlparse
 
 from .info import API_URL
@@ -156,7 +157,7 @@ class NSElement(
 
     # insert() implemented by ElementBase
 
-    def get_element(self, key: str) -> "NSElement":
+    def get_element(self, key: Union[int, str]) -> "NSElement":
         """
         Gets a subelement as :meth:`__getitem__`, but without autoconverting it into other data types.
         """
@@ -187,14 +188,14 @@ class NSResponse(aiohttp.ClientResponse):
             lock = _NullACM()
         else:
             # pylint: disable=E1701
-            lock = Api.lock
+            lock = Api._lock
         async with lock:
             for tries in range(5):
                 response = await super().start(conn)
                 with contextlib.suppress(KeyError):
-                    lock.xrlrs(response.headers["X-ratelimit-requests-seen"])
+                    lock._xrlrs(response.headers["X-ratelimit-requests-seen"])
                 if response.status == 429:
-                    lock.xra(response.headers["X-Retry-After"])
+                    lock._xra(response.headers["X-Retry-After"])
                     break
                 elif response.status >= 500:
                     # keep the lock

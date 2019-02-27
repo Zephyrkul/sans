@@ -10,20 +10,20 @@ RATE = collections.namedtuple("RateLimit", ("requests", "block", "rpad", "bpad",
 
 
 class ResetLock(asyncio.Lock):
-    __slots__ = "_xrlrs", "_xra", "_deferred"
+    __slots__ = "__xrlrs", "__xra", "__deferred"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._xrlrs = 0
-        self._xra = None
-        self._deferred = False
+        self.__xrlrs = 0
+        self.__xra = None
+        self.__deferred = False
 
     def __aexit__(self, exc_type, exc, tb):
         if isinstance(exc, aiohttp.ClientResponseError):
             if exc.status == 429:
-                self.xra(exc.headers["X-Retry-After"])
+                self._xra(exc.headers["X-Retry-After"])
             elif "X-ratelimit-requests-seen" in exc.headers:
-                self.xrlrs(exc.headers["X-ratelimit-requests-seen"])
+                self._xrlrs(exc.headers["X-ratelimit-requests-seen"])
 
         # returns a coroutine
         return super().__aexit__(exc_type, exc, tb)
@@ -31,33 +31,39 @@ class ResetLock(asyncio.Lock):
     # Prevent deprecated lock usage
     __await__, __enter__, __iter__ = None, None, None
 
-    def defer(self):
-        self._deferred = True
+    def _defer(self):
+        self.__deferred = True
         self._loop.call_later(self._xra - time.time(), self._release)
 
     def release(self):
-        if not self._deferred:
+        if not self.__deferred:
             super().release()
 
     def _release(self):
-        self._deferred = False
+        self.__deferred = False
         super().release()
 
-    def xra(self, xra: int):
-        if not self.locked():
-            raise asyncio.InvalidStateError()
+    def _xra(self, xra: int):
         xra = int(xra)
-        self._xrlrs = 0
-        self._xra = time.time() + xra + RATE.bpad
-        self.defer()
+        self.__xrlrs = 0
+        self.__xra = time.time() + xra + RATE.bpad
+        self._defer()
 
-    def xrlrs(self, xrlrs: int):
-        if not self.locked():
-            raise asyncio.InvalidStateError()
+    def _xrlrs(self, xrlrs: int):
         now = time.time()
         xrlrs = int(xrlrs)
-        if self._xra is None or xrlrs < self._xrlrs or self._xra <= now:
-            self._xra = now + RATE.block + RATE.bpad
-        self._xrlrs = xrlrs
+        if self.__xra is None or xrlrs < self.__xrlrs or self.__xra <= now:
+            self.__xra = now + RATE.block + RATE.bpad
+        self.__xrlrs = xrlrs
         if xrlrs >= RATE.requests - RATE.rpad:
-            self.defer()
+            self._defer()
+
+    @property
+    def xra(self):
+        if self.__deferred:
+            return self.__xra
+        return None
+
+    @property
+    def xrlrs(self):
+        return self.__xrlrs

@@ -6,7 +6,7 @@ __author__ = "Zephyrkul"
 __license__ = "MIT"
 __copyright__ = "Copyright 2019-2019 Zephyrkul"
 
-version_info = _ST("0.0.1a3")
+version_info = _ST("0.0.1b1")
 __version__ = str(version_info)
 
 API_URL = ("https", "www.nationstates.net", "/cgi-bin/api.cgi")
