@@ -16,7 +16,14 @@ from typing import (
     Mapping as _Mapping,
     Optional as _Optional,
 )
-from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse, urlunparse
+from urllib.parse import (
+    parse_qs,
+    quote_plus,
+    unquote_plus,
+    urlencode,
+    urlparse,
+    urlunparse,
+)
 
 from .errors import HTTPException, BadRequest
 from .info import API_URL, __version__
@@ -209,7 +216,9 @@ class Api(metaclass=ApiMeta):
     def __await__(self):
         return self.__await().__await__()
 
-    async def __aiter__(self, *, no_clear: bool = False) -> _AsyncGenerator[NSElement, None]:
+    async def __aiter__(
+        self, *, no_clear: bool = False
+    ) -> _AsyncGenerator[NSElement, None]:
         if not self.agent:
             raise RuntimeError("The API's user agent is not yet set.")
         if "a" in self and self["a"].lower() == "sendtg":
@@ -220,18 +229,23 @@ class Api(metaclass=ApiMeta):
         url = str(self)
 
         parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
-        parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
+        parser.set_element_class_lookup(
+            etree.ElementDefaultClassLookup(element=NSElement)
+        )
         events = parser.read_events()
 
         async with self.session.request(
             "GET", url, headers={"User-Agent": self.agent}
         ) as response:
-            encoding = response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+            encoding = (
+                response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+            )
             async for data, _ in response.content.iter_chunks():
                 parser.feed(data.decode(encoding))
                 for _, element in events:
                     if not no_clear and (
-                        element.getparent() is None or element.getparent().getparent() is not None
+                        element.getparent() is None
+                        or element.getparent().getparent() is not None
                     ):
                         continue
                     yield element
@@ -255,7 +269,9 @@ class Api(metaclass=ApiMeta):
         if "a" in self:
             if self["a"] == "verify" and all(a in self for a in ("nation", "checksum")):
                 return True
-            if self["a"] == "sendtg" and all(a in self for a in ("client", "tgid", "key", "to")):
+            if self["a"] == "sendtg" and all(
+                a in self for a in ("client", "tgid", "key", "to")
+            ):
                 return True
         return "q" in self
 
@@ -287,11 +303,14 @@ class Api(metaclass=ApiMeta):
 
     def __repr__(self) -> str:
         return "{}({})".format(
-            type(self).__name__, ", ".join("{}={!r}".format(*t) for t in self.__proxy.items())
+            type(self).__name__,
+            ", ".join("{}={!r}".format(*t) for t in self.__proxy.items()),
         )
 
     def __str__(self) -> str:
-        params = [(k, v if isinstance(v, str) else " ".join(v)) for k, v in self.items()]
+        params = [
+            (k, v if isinstance(v, str) else " ".join(v)) for k, v in self.items()
+        ]
         return urlunparse((*API_URL, None, urlencode(params, safe="+"), None))
 
     @property
@@ -305,7 +324,9 @@ class Api(metaclass=ApiMeta):
         return Threadsafe(self)
 
     @classmethod
-    def from_url(cls, url: str, *shards: _Iterable[str], **parameters: _Iterable[str]) -> "Api":
+    def from_url(
+        cls, url: str, *shards: _Iterable[str], **parameters: _Iterable[str]
+    ) -> "Api":
         """
         Constructs an Api object from a provided URL.
 
@@ -343,18 +364,27 @@ class Dumps(Enum):
         # pylint: disable=E1101
         tag = self.name.upper().rstrip("S")
 
-        parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True, tag=tag)
-        parser.set_element_class_lookup(etree.ElementDefaultClassLookup(element=NSElement))
+        parser = etree.XMLPullParser(
+            ["end"], base_url=url, remove_blank_text=True, tag=tag
+        )
+        parser.set_element_class_lookup(
+            etree.ElementDefaultClassLookup(element=NSElement)
+        )
         events = parser.read_events()
         dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        async with Api.session.request("GET", url, headers={"User-Agent": Api.agent}) as response:
+        async with Api.session.request(
+            "GET", url, headers={"User-Agent": Api.agent}
+        ) as response:
             async for data, _ in response.content.iter_chunks():
                 parser.feed(dobj.decompress(data))
                 for _, element in events:
                     yield element
                     element.clear()
-                    while element.getparent() is not None and element.getprevious() is not None:
+                    while (
+                        element.getparent() is not None
+                        and element.getprevious() is not None
+                    ):
                         del element.getparent()[0]
 
     @property

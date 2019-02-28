@@ -18,10 +18,14 @@ def main():
         prog="sans",
         epilog="Any unknown args will be used to build the API request.",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s " + sans.__version__)
+    parser.add_argument(
+        "--version", action="version", version="%(prog)s " + sans.__version__
+    )
     parser.add_argument("--agent", help="set the script's user agent")
     parser.add_argument(
-        "--quit", action="store_true", help="quit the console program loop after this run"
+        "--quit",
+        action="store_true",
+        help="quit the console program loop after this run",
     )
     parser.usage = parser.format_usage() + " ..."
     known, unknown = parser.parse_known_args()
@@ -39,7 +43,10 @@ def main():
         else:
             args = parser.parse_known_args(shlex.split(input(parser.prog + " ")))
             if args[0].agent:
-                print("You can't change the agent in the middle of the script.", file=sys.stderr)
+                print(
+                    "You can't change the agent in the middle of the script.",
+                    file=sys.stderr,
+                )
         known, unknown = args
         if not unknown:
             if known.quit:

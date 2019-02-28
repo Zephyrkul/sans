@@ -70,7 +70,9 @@ class Threadsafe:
         self._api = api
 
     def __await__(self):
-        return asyncio.wrap_future(self._run_coro_ts(self._wrapper(self._api))).__await__()
+        return asyncio.wrap_future(
+            self._run_coro_ts(self._wrapper(self._api))
+        ).__await__()
 
     async def __aiter__(self):
         aiter = self._api.__aiter__()

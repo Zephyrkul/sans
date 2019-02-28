@@ -4,9 +4,9 @@ import collections
 import time
 
 
-RATE = collections.namedtuple("RateLimit", ("requests", "block", "rpad", "bpad", "retry"))(
-    50, 30, 2, 0.1, 900
-)
+RATE = collections.namedtuple(
+    "RateLimit", ("requests", "block", "rpad", "bpad", "retry")
+)(50, 30, 2, 0.1, 900)
 
 
 class ResetLock(asyncio.Lock):

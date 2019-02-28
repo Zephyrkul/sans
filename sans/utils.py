@@ -5,7 +5,9 @@ from typing import Optional
 
 
 _get_running_loop = getattr(
-    asyncio, "get_running_loop", getattr(asyncio, "_get_running_loop", asyncio.get_event_loop)
+    asyncio,
+    "get_running_loop",
+    getattr(asyncio, "_get_running_loop", asyncio.get_event_loop),
 )
 
 
