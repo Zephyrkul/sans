@@ -6,12 +6,14 @@ import functools
 import sys
 import zlib
 from collections.abc import Iterable, Mapping
+from datetime import date as Date
 from enum import Enum
 from lxml import etree
 from types import MappingProxyType
 from typing import (
     Any as _Any,
     AsyncGenerator as _AsyncGenerator,
+    ClassVar as _ClassVar,
     Iterable as _Iterable,
     Mapping as _Mapping,
     Optional as _Optional,
@@ -59,7 +61,7 @@ class _Adds:
 
 
 def _normalize_dicts(*dicts: _Mapping[str, _Iterable[str]]):
-    final = {}
+    final: dict = {}
     for d in dicts:
         for k, v in d.items():
             if not all((k, v)):
@@ -340,29 +342,55 @@ class Api(metaclass=ApiMeta):
         return cls(*shards, parse_qs(parsed_url.query), parameters)
 
 
-class Dumps(Enum):
+class _DumpsType:
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, date: _Optional[Date] = None):
+        return Dumps(self, date)
+
+    def __aiter__(self):
+        return Dumps(self).__aiter__()
+
+    def __getattr__(self, attr):
+        return getattr(Dumps(self), attr)
+
+
+class Dumps:
     """
     Request the daily data dumps.
     Dumps docs can be found here: https://www.nationstates.net/pages/api.html#dumps
 
-    Dumps objects support asynchronous iteration, which returns each nation / region's XML.
+    Dumps objects support asynchronous iteration, which returns each nation's / region's XML.
     To perform operations from another thread, use the :attr:`threadsafe` property.
     """
 
-    __slots__ = ()
+    __slots__ = ("category", "url")
 
-    NATIONS = urlunparse((*API_URL[:2], "/pages/nations.xml.gz", None, None, None))
+    NATIONS: _ClassVar[_DumpsType] = _DumpsType("nations")
     NATION = NATIONS
-    REGIONS = urlunparse((*API_URL[:2], "/pages/regions.xml.gz", None, None, None))
+    REGIONS: _ClassVar[_DumpsType] = _DumpsType(
+        urlunparse((*API_URL[:2], "/pages/regions.xml.gz", None, None, None))
+    )
     REGION = REGIONS
+
+    def __init__(self, category: _DumpsType, date: _Optional[Date] = None):
+        self.category = category
+        if not date:
+            self.url = urlunparse(
+                (*API_URL[:2], "/pages/{name}.xml.gz", None, None, None)
+            ).format(name=category.name)
+        else:
+            self.url = urlunparse(
+                (*API_URL[:2], "/archive/{name}/{date}-{name}-xml.gz", None, None, None)
+            ).format(name=category.name, date=date.isoformat())
 
     async def __aiter__(self) -> _AsyncGenerator[NSElement, None]:
         if not Api.agent:
             raise RuntimeError("The API's user agent is not yet set.")
 
-        url = self.value
-        # pylint: disable=E1101
-        tag = self.name.upper().rstrip("S")
+        url = self.url
+        tag = self.category.name.upper().rstrip("S")
 
         parser = etree.XMLPullParser(
             ["end"], base_url=url, remove_blank_text=True, tag=tag
@@ -396,3 +424,6 @@ class Dumps(Enum):
         Both standard and async iteration are supported.
         """
         return Threadsafe(self)
+
+
+Archives = Dumps

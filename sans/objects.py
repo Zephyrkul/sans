@@ -4,7 +4,7 @@ import collections
 import contextlib
 from concurrent.futures import Future
 from lxml import etree
-from typing import Union
+from typing import Any, Union
 from urllib.parse import urlparse
 
 from .info import API_URL
@@ -170,6 +170,21 @@ class NSElement(
         if e is None:
             raise KeyError(key)
         return e
+
+    def pop(self, key: Union[int, str] = -1, default: Any = NotImplemented) -> Any:
+        """
+        D.pop(k[,d]) -> v, remove specified key and return the corresponding value.
+        If key is not found, d is returned if given, otherwise KeyError or IndexError is raised.
+        """
+        try:
+            val = self[key]
+        except (KeyError, IndexError):
+            if default is NotImplemented:
+                raise
+            return default
+        else:
+            del self[key]
+            return val
 
     def to_pretty_string(self) -> str:
         """
