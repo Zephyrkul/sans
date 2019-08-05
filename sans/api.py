@@ -369,9 +369,7 @@ class Dumps:
 
     NATIONS: _ClassVar[_DumpsType] = _DumpsType("nations")
     NATION = NATIONS
-    REGIONS: _ClassVar[_DumpsType] = _DumpsType(
-        urlunparse((*API_URL[:2], "/pages/regions.xml.gz", None, None, None))
-    )
+    REGIONS: _ClassVar[_DumpsType] = _DumpsType("regions")
     REGION = REGIONS
 
     def __init__(self, category: _DumpsType, date: _Optional[Date] = None):
