@@ -274,7 +274,7 @@ class Api(metaclass=ApiMeta):
     async def __aiter__(
         self, *, no_clear: bool = False
     ) -> _AsyncGenerator[NSElement, None]:
-        if not self.agent:
+        if not Api.agent:
             raise RuntimeError("The API's user agent is not yet set.")
         if "a" in self and self["a"].lower() == "sendtg":
             raise RuntimeError("This API wrapper does not support API telegrams.")
@@ -289,14 +289,14 @@ class Api(metaclass=ApiMeta):
         )
         events = parser.read_events()
 
-        headers = {"User-Agent": self.agent}
+        headers = {"User-Agent": Api.agent}
         if self._password:
             headers["X-Password"] = self.password
         if self._autologin:
             headers["X-Autologin"] = self.autologin
         if self.get("nation") in PINS:
             headers["X-Pin"] = PINS[self["nation"]]
-        async with self.session.request("GET", url, headers=headers) as response:
+        async with Api.session.request("GET", url, headers=headers) as response:
             if "X-Autologin" in response.headers:
                 self._password, self._autologin = None, response.headers["X-Autologin"]
             if "X-Pin" in response.headers:
