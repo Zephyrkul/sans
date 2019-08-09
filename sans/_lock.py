@@ -33,7 +33,7 @@ class ResetLock(asyncio.Lock):
 
     def _defer(self):
         self.__deferred = True
-        self._loop.call_later(self._xra - time.time(), self._release)
+        self._loop.call_later(self.__xra - time.time(), self._release)
 
     def release(self):
         if not self.__deferred:

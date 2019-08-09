@@ -7,7 +7,6 @@ import sys
 import zlib
 from collections.abc import Iterable, Mapping
 from datetime import date as Date
-from enum import Enum
 from lxml import etree
 from types import MappingProxyType
 from typing import (
@@ -17,6 +16,7 @@ from typing import (
     Iterable as _Iterable,
     Mapping as _Mapping,
     Optional as _Optional,
+    Union as _Union,
 )
 from urllib.parse import (
     parse_qs,
@@ -35,8 +35,11 @@ from ._lock import ResetLock
 
 
 __all__ = ["Api", "Dumps"]
+
+
 AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{aiohttp.__version__} sans/{__version__}".format
 API_VERSION = "9"
+PINS: dict = {}
 
 
 # Set of keys that should be added to rather than overwritten
@@ -81,6 +84,13 @@ def _normalize_dicts(*dicts: _Mapping[str, _Iterable[str]]):
 
 
 class ApiMeta(type):
+    """
+    The :class:`Api`'s metaclass.
+
+    Lazily loads and controls access and settings to various global states,
+    accessible by attribute access from the :class:`Api` class.
+    """
+
     def __init__(cls, *args, **kwargs):
         super().__init__(*args, **kwargs)
         cls._agent = None
@@ -99,12 +109,12 @@ class ApiMeta(type):
             cls._agent = AGENT_FMT(value)
 
     @property
-    def loop(cls) -> asyncio.AbstractEventLoop:
+    def loop(cls) -> _Optional[asyncio.AbstractEventLoop]:
         """The API wrapper's event loop.
 
         Cannot be changed once it has been set or referenced."""
         if not cls._loop:
-            cls._loop = asyncio.get_event_loop()
+            cls._loop = get_running_loop()
         return cls._loop
 
     @loop.setter
@@ -114,32 +124,47 @@ class ApiMeta(type):
         cls._loop = loop
 
     @property
-    def _lock(cls) -> ResetLock:
-        """The API wrapper's rate-limiting lock."""
-        if not cls.__lock:
-            cls.__lock = ResetLock(loop=cls.loop)
-        return cls.__lock
-
-    @property
     def session(cls) -> aiohttp.ClientSession:
         """The API wrapper's HTTP client session."""
         if not cls._session or cls._session.closed:
+            loop = cls.loop
+            if not loop:
+                cls.loop = asyncio.get_event_loop()
             cls._session = aiohttp.ClientSession(
-                loop=cls.loop, raise_for_status=True, response_class=NSResponse
+                loop=loop, raise_for_status=True, response_class=NSResponse
             )
         return cls._session
 
     @property
-    def xra(cls) -> _Optional[float]:
+    def _lock(cls) -> ResetLock:
+        if not cls.__lock:
+            loop = cls.loop
+            if not loop:
+                cls.loop = asyncio.get_event_loop()
+            cls.__lock = ResetLock(loop=loop)
+        return cls.__lock
+
+    @property
+    def locked(cls) -> _Optional[bool]:
+        """
+        Whether or not the API's lock is currently locked.
+
+        As every request acquires the lock, use :attr:`xra` to check if the rate limit is saturated instead.
+        """
         if cls.__lock:
-            return cls.__lock.xra
+            return cls.__lock.locked()
         return None
 
     @property
-    def xrlrs(cls) -> int:
+    def xra(cls) -> _Optional[float]:
+        """
+        If the rate limit is currently saturated,
+        returns when another API call can be made in the form of a Unix timestamp.
+        Otherwise, returns `None`.
+        """
         if cls.__lock:
-            return cls.__lock.xrlrs
-        return 0
+            return cls.__lock.xra
+        return None
 
 
 class Api(metaclass=ApiMeta):
@@ -149,6 +174,8 @@ class Api(metaclass=ApiMeta):
 
     This is a low-level API wrapper. Some attempts will be made to prevent bad requests,
     but it will not check shards against a verified list.
+    Authentication may be provided for private nation shards.
+    X-Pin headers are be stored internally and globally for ease of use.
 
     Api objects may be awaited or asynchronously iterated.
     To perform operations from another thread, use the :attr:`threadsafe` property.
@@ -174,6 +201,10 @@ class Api(metaclass=ApiMeta):
     ----------
     \*shards: str
         Shards to request from the API.
+    password: str
+        X-Password authentication for private nation shards.
+    autologin: str
+        X-Autologin authentication for private nation shards.
     \*\*parameters: str
         Query parameters to append to the request, e.g. nation, scale.
 
@@ -191,23 +222,45 @@ class Api(metaclass=ApiMeta):
             print(shard.to_pretty_string())
     """
 
-    __slots__ = ("__proxy",)
+    __slots__ = ("__proxy", "_password", "_autologin", "_str", "_hash")
 
-    def __new__(cls, *shards: _Iterable[str], **parameters: _Iterable[str]):
+    def __new__(
+        cls,
+        *shards: _Union[str, _Iterable[str]],
+        password: _Optional[str] = None,
+        autologin: _Optional[str] = None,
+        **parameters: str,
+    ):
         if len(shards) == 1 and not parameters:
             if isinstance(shards[0], cls):
                 return shards[0]
             with contextlib.suppress(Exception):
                 return cls.from_url(shards[0])
+        return super().__new__(cls)
+
+    def __init__(
+        self,
+        *shards: _Union[str, _Iterable[str]],
+        password: _Optional[str] = None,
+        autologin: _Optional[str] = None,
+        **parameters: str,
+    ):
+        has_nation = "nation" in parameters
         dicts = [parameters] if parameters else []
         for shard in filter(bool, shards):
             if isinstance(shard, Mapping):
                 dicts.append(shard)
+                if not has_nation and "nation" in shard:
+                    has_nation = True
             else:
                 dicts.append({"q": shard})
-        self = super().__new__(cls)
+        if not has_nation and (password or autologin):
+            raise ValueError("Authentication may only be used with the Nation API.")
         self.__proxy = MappingProxyType(_normalize_dicts(*dicts))
-        return self
+        self._password = password
+        self._autologin = autologin
+        self._str = None
+        self._hash = None
 
     async def __await(self):
         # pylint: disable=E1133
@@ -236,9 +289,18 @@ class Api(metaclass=ApiMeta):
         )
         events = parser.read_events()
 
-        async with self.session.request(
-            "GET", url, headers={"User-Agent": self.agent}
-        ) as response:
+        headers = {"User-Agent": self.agent}
+        if self._password:
+            headers["X-Password"] = self.password
+        if self._autologin:
+            headers["X-Autologin"] = self.autologin
+        if self.get("nation") in PINS:
+            headers["X-Pin"] = PINS[self["nation"]]
+        async with self.session.request("GET", url, headers=headers) as response:
+            if "X-Autologin" in response.headers:
+                self._password, self._autologin = None, response.headers["X-Autologin"]
+            if "X-Pin" in response.headers:
+                PINS[self["nation"]] = response.headers["X-Pin"]
             encoding = (
                 response.headers["Content-Type"].split("charset=")[1].split(",")[0]
             )
@@ -290,12 +352,20 @@ class Api(metaclass=ApiMeta):
     def __getattr__(self, name: str):
         with contextlib.suppress(AttributeError):
             return getattr(self.__proxy, name)
-        if not hasattr(type, name):
-            return getattr(type(self), name)
-        raise AttributeError
+        raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}")
 
     def __getitem__(self, key):
         return self.__proxy[str(key).lower()]
+
+    def __hash__(self):
+        if self._hash is not None:
+            return self._hash
+        params = sorted(
+            (k, v if isinstance(v, str) else " ".join(sorted(v)))
+            for k, v in self.items()
+        )
+        self._hash = hash(tuple(params))
+        return self._hash
 
     def __iter__(self):
         return iter(self.__proxy)
@@ -304,16 +374,28 @@ class Api(metaclass=ApiMeta):
         return len(self.__proxy)
 
     def __repr__(self) -> str:
-        return "{}({})".format(
+        return "{}.{}({})".format(
+            type(self).__module__,
             type(self).__name__,
             ", ".join("{}={!r}".format(*t) for t in self.__proxy.items()),
         )
 
     def __str__(self) -> str:
+        if self._str is not None:
+            return self._str
         params = [
             (k, v if isinstance(v, str) else " ".join(v)) for k, v in self.items()
         ]
-        return urlunparse((*API_URL, None, urlencode(params, safe="+"), None))
+        self._str = urlunparse((*API_URL, None, urlencode(params, safe="+"), None))
+        return self._str
+
+    @property
+    def autologin(self) -> _Optional[str]:
+        """
+        If a private nation shard was properly requested and returned,
+        this property may be used to get the "X-Autologin" token.
+        """
+        return self._autologin
 
     @property
     def threadsafe(self) -> Threadsafe:
@@ -346,8 +428,8 @@ class _DumpsType:
     def __init__(self, name):
         self.name = name
 
-    def __call__(self, date: _Optional[Date] = None):
-        return Dumps(self, date)
+    def __call__(self, *date: _Union[Date, int]):
+        return Dumps(self, *date)
 
     def __aiter__(self):
         return Dumps(self).__aiter__()
@@ -372,13 +454,17 @@ class Dumps:
     REGIONS: _ClassVar[_DumpsType] = _DumpsType("regions")
     REGION = REGIONS
 
-    def __init__(self, category: _DumpsType, date: _Optional[Date] = None):
+    def __init__(self, category: _DumpsType, *date: _Union[Date, int]):
         self.category = category
         if not date:
             self.url = urlunparse(
                 (*API_URL[:2], "/pages/{name}.xml.gz", None, None, None)
             ).format(name=category.name)
         else:
+            if len(date) == 1 and isinstance(date, Date):
+                date = date[0]
+            else:
+                date = Date(*date)
             self.url = urlunparse(
                 (*API_URL[:2], "/archive/{name}/{date}-{name}-xml.gz", None, None, None)
             ).format(name=category.name, date=date.isoformat())

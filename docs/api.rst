@@ -3,5 +3,8 @@ API
 
 .. automodule:: sans.api
     :members:
-    :undoc-members:
+    :show-inheritance:
+
+.. autoclass:: sans.api.ApiMeta
+    :members:
     :show-inheritance:
