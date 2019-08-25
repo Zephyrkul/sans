@@ -291,9 +291,9 @@ class Api(metaclass=ApiMeta):
 
         headers = {"User-Agent": Api.agent}
         if self._password:
-            headers["X-Password"] = self.password
+            headers["X-Password"] = self._password
         if self._autologin:
-            headers["X-Autologin"] = self.autologin
+            headers["X-Autologin"] = self._autologin
         if self.get("nation") in PINS:
             headers["X-Pin"] = PINS[self["nation"]]
         async with Api.session.request("GET", url, headers=headers) as response:
