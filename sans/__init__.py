@@ -1,4 +1,4 @@
-from .errors import *
+# flake8: noqa: F401
 from .info import (
     __title__,
     __author__,

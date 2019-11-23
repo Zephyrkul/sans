@@ -1,6 +1,5 @@
 import aiohttp
 import asyncio
-import collections
 import contextlib
 import functools
 import sys
@@ -18,26 +17,19 @@ from typing import (
     Optional as _Optional,
     Union as _Union,
 )
-from urllib.parse import (
-    parse_qs,
-    quote_plus,
-    unquote_plus,
-    urlencode,
-    urlparse,
-    urlunparse,
-)
+from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
 
-from .errors import HTTPException, BadRequest
+from .errors import BadRequest
 from .info import API_URL, __version__
 from .objects import Threadsafe, NSElement, NSResponse
 from .utils import get_running_loop
 from ._lock import ResetLock
 
 
-__all__ = ["Api", "Dumps"]
+__all__ = ["Api", "Dumps", "Archives"]
 
 
-AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{aiohttp.__version__} sans/{__version__}".format
+AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{aiohttp.__version__} sans/{__version__}"
 API_VERSION = "9"
 PINS: dict = {}
 
@@ -106,7 +98,7 @@ class ApiMeta(type):
     @agent.setter
     def agent(cls, value: str) -> None:
         if value:
-            cls._agent = AGENT_FMT(value)
+            cls._agent = AGENT_FMT.format(value)
 
     @property
     def loop(cls) -> _Optional[asyncio.AbstractEventLoop]:
@@ -222,7 +214,7 @@ class Api(metaclass=ApiMeta):
             print(shard.to_pretty_string())
     """
 
-    __slots__ = ("__proxy", "_password", "_autologin", "_str", "_hash")
+    __slots__ = ("__proxy", "_password", "_str", "_hash", "_last_response")
 
     def __new__(
         cls,
@@ -258,12 +250,11 @@ class Api(metaclass=ApiMeta):
             raise ValueError("Authentication may only be used with the Nation API.")
         self.__proxy = MappingProxyType(_normalize_dicts(*dicts))
         self._password = password
-        self._autologin = autologin
+        self._last_response = None
         self._str = None
         self._hash = None
 
     async def __await(self):
-        # pylint: disable=E1133
         async for element in self.__aiter__(no_clear=True):
             pass
         return element
@@ -292,13 +283,15 @@ class Api(metaclass=ApiMeta):
         headers = {"User-Agent": Api.agent}
         if self._password:
             headers["X-Password"] = self._password
-        if self._autologin:
-            headers["X-Autologin"] = self._autologin
+        autologin = self.autologin
+        if autologin:
+            headers["X-Autologin"] = autologin
         if self.get("nation") in PINS:
             headers["X-Pin"] = PINS[self["nation"]]
         async with Api.session.request("GET", url, headers=headers) as response:
+            self._last_response = response
             if "X-Autologin" in response.headers:
-                self._password, self._autologin = None, response.headers["X-Autologin"]
+                self._password = None
             if "X-Pin" in response.headers:
                 PINS[self["nation"]] = response.headers["X-Pin"]
             encoding = (
@@ -337,6 +330,7 @@ class Api(metaclass=ApiMeta):
                 a in self for a in ("client", "tgid", "key", "to")
             ):
                 return True
+            return False
         return "q" in self
 
     def __contains__(self, key: str) -> bool:
@@ -384,7 +378,7 @@ class Api(metaclass=ApiMeta):
         if self._str is not None:
             return self._str
         params = [
-            (k, v if isinstance(v, str) else " ".join(v)) for k, v in self.items()
+            (k, v if isinstance(v, str) else "+".join(v)) for k, v in self.items()
         ]
         self._str = urlunparse((*API_URL, None, urlencode(params, safe="+"), None))
         return self._str
@@ -395,7 +389,25 @@ class Api(metaclass=ApiMeta):
         If a private nation shard was properly requested and returned,
         this property may be used to get the "X-Autologin" token.
         """
-        return self._autologin
+        if self._last_response:
+            return self._last_response.headers.get("X-Autologin")
+        return None
+
+    @property
+    def last_headers(self) -> _Optional[_Mapping[str, str]]:
+        """
+        Returns the headers returned from the last request this API object sent.
+        """
+        if self._last_response:
+            return self._last_response.headers
+        return None
+
+    @property
+    def last_response(self) -> _Optional[NSResponse]:
+        """
+        Returns the response object from the last request this API object sent.
+        """
+        return self._last_response
 
     @property
     def threadsafe(self) -> Threadsafe:
@@ -425,17 +437,28 @@ class Api(metaclass=ApiMeta):
 
 
 class _DumpsType:
+    __slots__ = "name"
+
     def __init__(self, name):
         self.name = name
 
+    @functools.lru_cache(maxsize=2)
     def __call__(self, *date: _Union[Date, int]):
         return Dumps(self, *date)
 
     def __aiter__(self):
-        return Dumps(self).__aiter__()
+        return self().__aiter__()
 
     def __getattr__(self, attr):
-        return getattr(Dumps(self), attr)
+        return getattr(self(), attr)
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if isinstance(other, type(self)):
+            return self.name == other.name
+        return NotImplemented
 
 
 class Dumps:
@@ -447,7 +470,7 @@ class Dumps:
     To perform operations from another thread, use the :attr:`threadsafe` property.
     """
 
-    __slots__ = ("category", "url")
+    __slots__ = ("url", "_category", "_last_response")
 
     NATIONS: _ClassVar[_DumpsType] = _DumpsType("nations")
     NATION = NATIONS
@@ -455,7 +478,8 @@ class Dumps:
     REGION = REGIONS
 
     def __init__(self, category: _DumpsType, *date: _Union[Date, int]):
-        self.category = category
+        self._category = category
+        self._last_response = None
         if not date:
             self.url = urlunparse(
                 (*API_URL[:2], "/pages/{name}.xml.gz", None, None, None)
@@ -474,7 +498,7 @@ class Dumps:
             raise RuntimeError("The API's user agent is not yet set.")
 
         url = self.url
-        tag = self.category.name.upper().rstrip("S")
+        tag = self._category.name.upper().rstrip("S")
 
         parser = etree.XMLPullParser(
             ["end"], base_url=url, remove_blank_text=True, tag=tag
@@ -488,6 +512,7 @@ class Dumps:
         async with Api.session.request(
             "GET", url, headers={"User-Agent": Api.agent}
         ) as response:
+            self._last_response = response
             async for data, _ in response.content.iter_chunks():
                 parser.feed(dobj.decompress(data))
                 for _, element in events:
@@ -498,6 +523,22 @@ class Dumps:
                         and element.getprevious() is not None
                     ):
                         del element.getparent()[0]
+
+    @property
+    def last_headers(self) -> _Optional[_Mapping[str, str]]:
+        """
+        Returns the headers returned from the last request this API object sent.
+        """
+        if self._last_response:
+            return self._last_response.headers
+        return None
+
+    @property
+    def last_response(self) -> _Optional[NSResponse]:
+        """
+        Returns the response object from the last request this API object sent.
+        """
+        return self._last_response
 
     @property
     def threadsafe(self) -> Threadsafe:

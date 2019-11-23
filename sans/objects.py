@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 import collections
 import contextlib
-from concurrent.futures import Future
+from collections.abc import MutableMapping, MutableSequence
 from lxml import etree
 from typing import Any, Union
 from urllib.parse import urlparse
@@ -51,7 +51,6 @@ class Threadsafe:
 
     @staticmethod
     def _run_coro_ts(coro):
-        # pylint: disable=F0401
         from .api import Api
 
         if not Api._loop or not Api._loop.is_running():
@@ -90,9 +89,7 @@ class Threadsafe:
                 yield self._run_coro_ts(aiter.__anext__()).result()
 
 
-class NSElement(
-    etree.ElementBase, collections.abc.MutableMapping, collections.abc.MutableSequence
-):
+class NSElement(etree.ElementBase, MutableMapping, MutableSequence):
     """
     LXML Element class that supports MutableMapping and MutableSequence methods.
 
@@ -157,7 +154,12 @@ class NSElement(
     def __str__(self):
         return etree.tostring(self, encoding=str)
 
-    # insert() implemented by ElementBase
+    def __contains__(self, element):
+        return any(
+            super(clz, self).__contains__(element) for clz in type(self).__bases__
+        )
+
+    # insert implemented by ElementBase
 
     def get_element(self, key: Union[int, str]) -> "NSElement":
         """
@@ -166,7 +168,10 @@ class NSElement(
         try:
             e = super().__getitem__(key)
         except TypeError:
-            e = self.find(key)
+            try:
+                e = self.find(key)
+            except SyntaxError as se:
+                raise KeyError(key) from se
         if e is None:
             raise KeyError(key)
         return e
@@ -197,14 +202,12 @@ class NSResponse(aiohttp.ClientResponse):
     __slots__ = ()
 
     async def start(self, conn):
-        # pylint: disable=F0401
         from .api import Api
 
         if urlparse(str(self.real_url))[: len(API_URL)] != API_URL:
             # don't use the lock
             lock = _NullACM()
         else:
-            # pylint: disable=E1701
             lock = Api._lock
         async with lock:
             for tries in range(5):
