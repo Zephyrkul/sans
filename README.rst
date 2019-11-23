@@ -112,7 +112,7 @@ Requirements
    :target: https://pypi.python.org/pypi/sans
 .. |Code style: black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/ambv/black
-.. |Build Status| image:: https://travis-ci.com/zephyrkul/sans.svg?branch=master
-   :target: https://travis-ci.com/zephyrkul/sans
+.. |Build Status| image:: https://github.com/zephyrkul/sans/workflows/build/badge.svg
+   :target: https://github.com/zephyrkul/sans/actions?workflow=build
 .. |Documentation Status| image:: https://readthedocs.org/projects/sans/badge/?version=latest
    :target: http://sans.readthedocs.org/en/latest/?badge=latest
