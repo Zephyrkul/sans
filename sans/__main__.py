@@ -6,6 +6,7 @@ import sys
 import sans
 from sans.api import Api
 from sans.errors import HTTPException
+from sans.utils import pretty_string
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ def main():
         request = Api(request)
         try:
             for element in request.threadsafe:
-                print(element.to_pretty_string(), end="")
+                print(pretty_string(element), end="")
         except HTTPException as e:
             print(e, file=sys.stderr)
         except Exception as e:

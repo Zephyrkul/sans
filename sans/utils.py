@@ -1,7 +1,15 @@
 import asyncio
 import contextlib
+from lxml import etree
 from threading import Thread
 from typing import Optional
+
+
+def pretty_string(element_or_tree: etree.ElementBase) -> str:
+    """
+    Returns the base XML as a formatted and indented string.
+    """
+    return etree.tostring(element_or_tree, encoding=str, pretty_print=True)
 
 
 _get_running_loop = getattr(

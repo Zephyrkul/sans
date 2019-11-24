@@ -6,7 +6,7 @@ import sys
 import zlib
 from collections.abc import Iterable, Mapping
 from datetime import date as Date
-from lxml import etree
+from lxml import etree, objectify
 from types import MappingProxyType
 from typing import (
     Any as _Any,
@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, unquote_plus, urlencode, urlparse, urlunparse
 
 from .errors import BadRequest
 from .info import API_URL, __version__
-from .objects import Threadsafe, NSElement, NSResponse
+from .objects import Threadsafe, NSResponse
 from .utils import get_running_loop
 from ._lock import ResetLock
 
@@ -207,11 +207,11 @@ class Api(metaclass=ApiMeta):
 
         darc = await Api(nation="darcania")
         async for shard in Api(nation="testlandia"):
-           print(shard.to_pretty_string())
+           print(pretty_string(shard))
 
         tnp = Api(region="the_north_pacific").threadsafe()
         for shard in Api(region="testregionia").threadsafe:
-            print(shard.to_pretty_string())
+            print(pretty_string(shard))
     """
 
     __slots__ = ("__proxy", "_password", "_str", "_hash", "_last_response")
@@ -255,7 +255,7 @@ class Api(metaclass=ApiMeta):
         self._hash = None
 
     async def __await(self):
-        async for element in self.__aiter__(no_clear=True):
+        async for element in self.__aiter__(clear=False):
             pass
         return element
 
@@ -263,8 +263,8 @@ class Api(metaclass=ApiMeta):
         return self.__await().__await__()
 
     async def __aiter__(
-        self, *, no_clear: bool = False
-    ) -> _AsyncGenerator[NSElement, None]:
+        self, *, clear: bool = True
+    ) -> _AsyncGenerator[objectify.ObjectifiedElement, None]:
         if not Api.agent:
             raise RuntimeError("The API's user agent is not yet set.")
         if "a" in self and self["a"].lower() == "sendtg":
@@ -274,12 +274,6 @@ class Api(metaclass=ApiMeta):
             raise BadRequest()
         url = str(self)
 
-        parser = etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
-        parser.set_element_class_lookup(
-            etree.ElementDefaultClassLookup(element=NSElement)
-        )
-        events = parser.read_events()
-
         headers = {"User-Agent": Api.agent}
         if self._password:
             headers["X-Password"] = self._password
@@ -288,29 +282,34 @@ class Api(metaclass=ApiMeta):
             headers["X-Autologin"] = autologin
         if self.get("nation") in PINS:
             headers["X-Pin"] = PINS[self["nation"]]
-        async with Api.session.request("GET", url, headers=headers) as response:
-            self._last_response = response
-            if "X-Autologin" in response.headers:
-                self._password = None
-            if "X-Pin" in response.headers:
-                PINS[self["nation"]] = response.headers["X-Pin"]
-            encoding = (
-                response.headers["Content-Type"].split("charset=")[1].split(",")[0]
-            )
-            async for data, _ in response.content.iter_chunks():
-                parser.feed(data.decode(encoding))
-                for _, element in events:
-                    if not no_clear and (
-                        element.getparent() is None
-                        or element.getparent().getparent() is not None
-                    ):
-                        continue
-                    yield element
-                    if no_clear:
-                        continue
-                    element.clear()
-                    while element.getprevious() is not None:
-                        del element.getparent()[0]
+
+        with contextlib.closing(
+            etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
+        ) as parser:
+            parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
+            events = parser.read_events()
+
+            async with Api.session.request("GET", url, headers=headers) as response:
+                self._last_response = response
+                if "X-Autologin" in response.headers:
+                    self._password = None
+                if "X-Pin" in response.headers:
+                    PINS[self["nation"]] = response.headers["X-Pin"]
+                encoding = (
+                    response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+                )
+
+                async for data, _ in response.content.iter_chunks():
+                    parser.feed(data.decode(encoding))
+                    for _, element in events:
+                        if clear and (
+                            element.getparent() is None
+                            or element.getparent().getparent() is not None
+                        ):
+                            continue
+                        yield element
+                        if clear:
+                            element.clear(keep_tail=True)
 
     def __add__(self, other: _Any) -> "Api":
         if isinstance(other, str):
@@ -493,36 +492,29 @@ class Dumps:
                 (*API_URL[:2], "/archive/{name}/{date}-{name}-xml.gz", None, None, None)
             ).format(name=category.name, date=date.isoformat())
 
-    async def __aiter__(self) -> _AsyncGenerator[NSElement, None]:
+    async def __aiter__(self) -> _AsyncGenerator[objectify.ObjectifiedElement, None]:
         if not Api.agent:
             raise RuntimeError("The API's user agent is not yet set.")
 
         url = self.url
         tag = self._category.name.upper().rstrip("S")
-
-        parser = etree.XMLPullParser(
-            ["end"], base_url=url, remove_blank_text=True, tag=tag
-        )
-        parser.set_element_class_lookup(
-            etree.ElementDefaultClassLookup(element=NSElement)
-        )
-        events = parser.read_events()
         dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        async with Api.session.request(
-            "GET", url, headers={"User-Agent": Api.agent}
-        ) as response:
-            self._last_response = response
-            async for data, _ in response.content.iter_chunks():
-                parser.feed(dobj.decompress(data))
-                for _, element in events:
-                    yield element
-                    element.clear()
-                    while (
-                        element.getparent() is not None
-                        and element.getprevious() is not None
-                    ):
-                        del element.getparent()[0]
+        with contextlib.closing(
+            etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True, tag=tag)
+        ) as parser:
+            parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
+            events = parser.read_events()
+
+            async with Api.session.request(
+                "GET", url, headers={"User-Agent": Api.agent}
+            ) as response:
+                self._last_response = response
+                async for data, _ in response.content.iter_chunks():
+                    parser.feed(dobj.decompress(data))
+                    for _, element in events:
+                        yield element
+                        element.clear(keep_tail=True)
 
     @property
     def last_headers(self) -> _Optional[_Mapping[str, str]]:

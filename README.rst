@@ -37,6 +37,7 @@ Asynchronous
    import asyncio
    import sans
    from sans.api import Api, Dumps
+   from sans.utils import pretty_string
 
    async def main():
        Api.agent = "Darcania"
@@ -47,12 +48,12 @@ Asynchronous
            scale="65 66",
        )
        root = await request
-       pretty = root.to_pretty_string()
+       pretty = pretty_string(root)
        print(pretty)
 
        request = Dumps.REGIONS
        async for region in request:
-           pretty = region.to_pretty_string()
+           pretty = pretty_string(region)
            print(pretty)
 
 
@@ -76,12 +77,12 @@ Synchronous
            scale="65 66",
        )
        root = request.threadsafe()
-       pretty = root.to_pretty_string()
+       pretty = pretty_string(root)
        print(pretty)
 
        request = Dumps.REGIONS
        for region in request.threadsafe:
-           pretty = region.to_pretty_string()
+           pretty = pretty_string(region)
            print(pretty)
 
 

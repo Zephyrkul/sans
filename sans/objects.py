@@ -1,10 +1,6 @@
 import aiohttp
 import asyncio
-import collections
 import contextlib
-from collections.abc import MutableMapping, MutableSequence
-from lxml import etree
-from typing import Any, Union
 from urllib.parse import urlparse
 
 from .info import API_URL
@@ -87,115 +83,6 @@ class Threadsafe:
         with contextlib.suppress(StopAsyncIteration):
             while True:
                 yield self._run_coro_ts(aiter.__anext__()).result()
-
-
-class NSElement(etree.ElementBase, MutableMapping, MutableSequence):
-    """
-    LXML Element class that supports MutableMapping and MutableSequence methods.
-
-    Because backwards compatibility with my old pynationstates code is too hard otherwise.
-
-    Item access gets the nth subelement if an `int` is passed, or an element with the specified
-    tag if a `str` is passed. XPATH is also supported.
-    The subelement will be converted to common data types if they can be:
-
-    ========================================================================== ==================
-    Element                                                                    Return Type
-    ========================================================================== ==================
-    Element does not exist.                                                    `IndexError` or
-                                                                               `KeyError`
-    <ELEMENT />                                                                `NoneType`
-    <ELEMENT attrs="attr" />                                                   `dict`
-    <ELEMENT>#</ELEMENT> (# is a number)                                       `int` or `float`
-    <ELEMENT>data</ELEMENT>                                                    `str`
-    <ELEMENT><ANY_SUBELEMENT /></ELEMENT>                                      :class:`NSElement`
-    <ELEMENT attrs="attr">data</ELEMENT>                                       :class:`NSElement`
-    ========================================================================== ==================
-
-    :meth:`get_element` may be used to get subelements without autoconverting to common data types.
-    """
-
-    __slots__ = ()
-
-    def __delitem__(self, key):
-        element = self.get_element(key)
-        element.getparent().remove(element)
-
-    def __getitem__(self, key):
-        e = self.get_element(key)
-        if len(e):
-            return e
-        if e.attrib and e.text:
-            return e
-        if e.attrib:
-            return e.attrib
-        if not e.text:
-            return None
-        for t in (int, float):
-            with contextlib.suppress(ValueError):
-                return t(e.text)
-        return e.text
-
-    def __iter__(self):
-        for e in self.iterchildren():
-            yield e.tag
-
-    # __len__ implemented by ElementBase
-
-    def __setitem__(self, key, value):
-        with contextlib.suppress(TypeError):
-            return super().__setitem__(key, value)
-        e = self.get_element(key)
-        if isinstance(value, collections.abc.Mapping):
-            e.attrib = value
-        else:
-            e.text = str(value)
-
-    def __str__(self):
-        return etree.tostring(self, encoding=str)
-
-    def __contains__(self, element):
-        return any(
-            super(clz, self).__contains__(element) for clz in type(self).__bases__
-        )
-
-    # insert implemented by ElementBase
-
-    def get_element(self, key: Union[int, str]) -> "NSElement":
-        """
-        Gets a subelement as :meth:`__getitem__`, but without autoconverting it into other data types.
-        """
-        try:
-            e = super().__getitem__(key)
-        except TypeError:
-            try:
-                e = self.find(key)
-            except SyntaxError as se:
-                raise KeyError(key) from se
-        if e is None:
-            raise KeyError(key)
-        return e
-
-    def pop(self, key: Union[int, str] = -1, default: Any = NotImplemented) -> Any:
-        """
-        D.pop(k[,d]) -> v, remove specified key and return the corresponding value.
-        If key is not found, d is returned if given, otherwise KeyError or IndexError is raised.
-        """
-        try:
-            val = self[key]
-        except (KeyError, IndexError):
-            if default is NotImplemented:
-                raise
-            return default
-        else:
-            del self[key]
-            return val
-
-    def to_pretty_string(self) -> str:
-        """
-        Returns the base XML as a formatted and indented string.
-        """
-        return etree.tostring(self, encoding=str, pretty_print=True)
 
 
 class NSResponse(aiohttp.ClientResponse):
