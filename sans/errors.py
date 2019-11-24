@@ -1,7 +1,6 @@
 import inspect
 import re
 from aiohttp import ClientResponseError
-from contextlib import suppress
 from typing import Optional
 
 
