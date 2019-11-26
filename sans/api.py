@@ -122,9 +122,7 @@ class ApiMeta(type):
             loop = cls.loop
             if not loop:
                 cls.loop = asyncio.get_event_loop()
-            cls._session = aiohttp.ClientSession(
-                loop=loop, raise_for_status=True, response_class=NSResponse
-            )
+            cls._session = aiohttp.ClientSession(loop=loop, response_class=NSResponse)
         return cls._session
 
     @property
@@ -283,21 +281,22 @@ class Api(metaclass=ApiMeta):
         if self.get("nation") in PINS:
             headers["X-Pin"] = PINS[self["nation"]]
 
-        with contextlib.closing(
-            etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
-        ) as parser:
-            parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
-            events = parser.read_events()
+        async with Api.session.request("GET", url, headers=headers) as response:
+            self._last_response = response
+            if "X-Autologin" in response.headers:
+                self._password = None
+            if "X-Pin" in response.headers:
+                PINS[self["nation"]] = response.headers["X-Pin"]
+            response.raise_for_status()
 
-            async with Api.session.request("GET", url, headers=headers) as response:
-                self._last_response = response
-                if "X-Autologin" in response.headers:
-                    self._password = None
-                if "X-Pin" in response.headers:
-                    PINS[self["nation"]] = response.headers["X-Pin"]
-                encoding = (
-                    response.headers["Content-Type"].split("charset=")[1].split(",")[0]
-                )
+            encoding = (
+                response.headers["Content-Type"].split("charset=")[1].split(",")[0]
+            )
+            with contextlib.suppress(etree.XMLSyntaxError), contextlib.closing(
+                etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True)
+            ) as parser:
+                parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
+                events = parser.read_events()
 
                 async for data, _ in response.content.iter_chunks():
                     parser.feed(data.decode(encoding))
@@ -500,16 +499,20 @@ class Dumps:
         tag = self._category.name.upper().rstrip("S")
         dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
 
-        with contextlib.closing(
-            etree.XMLPullParser(["end"], base_url=url, remove_blank_text=True, tag=tag)
-        ) as parser:
-            parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
-            events = parser.read_events()
+        async with Api.session.request(
+            "GET", url, headers={"User-Agent": Api.agent}
+        ) as response:
+            self._last_response = response
+            response.raise_for_status()
 
-            async with Api.session.request(
-                "GET", url, headers={"User-Agent": Api.agent}
-            ) as response:
-                self._last_response = response
+            with contextlib.suppress(etree.XMLSyntaxError), contextlib.closing(
+                etree.XMLPullParser(
+                    ["end"], base_url=url, remove_blank_text=True, tag=tag
+                )
+            ) as parser:
+                parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
+                events = parser.read_events()
+
                 async for data, _ in response.content.iter_chunks():
                     parser.feed(dobj.decompress(data))
                     for _, element in events:
