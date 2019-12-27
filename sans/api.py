@@ -30,7 +30,7 @@ __all__ = ["Api", "Dumps", "Archives"]
 
 
 AGENT_FMT = f"{{}} Python/{sys.version_info[0]}.{sys.version_info[1]} aiohttp/{aiohttp.__version__} sans/{__version__}"
-API_VERSION = "9"
+API_VERSION = "10"
 PINS: dict = {}
 
 
