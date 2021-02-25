@@ -324,11 +324,9 @@ class Api(metaclass=ApiMeta):
         if "a" in self:
             if self["a"] == "verify" and all(a in self for a in ("nation", "checksum")):
                 return True
-            if self["a"] == "sendtg" and all(
+            return self["a"] == "sendtg" and all(
                 a in self for a in ("client", "tgid", "key", "to")
-            ):
-                return True
-            return False
+            )
         return "q" in self
 
     def __contains__(self, key: str) -> bool:
