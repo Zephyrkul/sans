@@ -21,17 +21,22 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 
+if sys.version_info < (3, 8):
+    from importlib_metadata import metadata as _metadata
+else:
+    from importlib.metadata import metadata as _metadata
+
 project = "sans"
-copyright = "2019, Zephyrkul"
-author = "Zephyrkul"
+meta = _metadata(project)
+copyright = meta["Copyright"]
+author = meta["Version"]
 
-
-from sans.info import __version__, version_info
-
-# The short X.Y version
-version = ".".join(map(str, version_info.version[:2]))
 # The full version, including alpha/beta/rc tags
-release = __version__
+release = meta["Version"]
+# The short X.Y version
+version = ".".join(release.split(".")[:2])
+
+del _metadata, meta
 
 
 # -- General configuration ---------------------------------------------------

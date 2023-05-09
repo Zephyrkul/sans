@@ -1,57 +1,77 @@
-import asyncio
-import contextlib
-from lxml import etree
-from threading import Thread
-from typing import Optional
+from __future__ import annotations
+
+import sys
+from typing import Any, Coroutine, Mapping, overload
+from xml.etree import ElementTree as etree
+
+from .client import AsyncClientType, ClientType
+from .request import Request
+from .response import Response
+
+__all__ = ["prepare_and_execute", "indent"]
 
 
-def pretty_string(element_or_tree: etree.ElementBase) -> str:
-    """
-    Returns the base XML as a formatted and indented string.
-    """
-    return etree.tostring(element_or_tree, encoding=str, pretty_print=True)
+@overload
+def prepare_and_execute(
+    client: ClientType, *shards: str | Mapping[str, str], **parameters: str
+) -> Response:
+    ...
 
 
-_get_running_loop = getattr(
-    asyncio,
-    "get_running_loop",
-    getattr(asyncio, "_get_running_loop", asyncio.get_event_loop),
-)
+@overload
+async def prepare_and_execute(
+    client: AsyncClientType, *shards: str | Mapping[str, str], **parameters: str
+) -> Response:
+    ...
 
 
-def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
-    """
-    Gets the running event loop without creating a new one.
+def prepare_and_execute(
+    client: ClientType | AsyncClientType,
+    *shards: str | Mapping[str, str],
+    **parameters: str,
+) -> Response | Coroutine[Any, Any, Response]:
+    if isinstance(client, AsyncClientType):
+        return _prepare_async(client, *shards, **parameters)
+    request = Request(*shards, **parameters, mode="prepare")
+    response = client.send(request)
+    token: str = response.xml.find("TOKEN").text  # type: ignore
+    request = Request(*shards, **parameters, mode="execute", token=token)
+    return client.send(request)
 
-    Backport of :func:`asyncio.get_running_loop` which doesn't raise.
-    """
-    with contextlib.suppress(RuntimeError):
-        return _get_running_loop()
-    return None
+
+async def _prepare_async(
+    client: AsyncClientType, *shards: str | Mapping[str, str], **parameters: str
+) -> Response:
+    request = Request(*shards, **parameters, mode="prepare")
+    response = await client.send(request)
+    token: str = response.xml.find("TOKEN").text  # type: ignore
+    request = Request(*shards, **parameters, mode="execute", token=token)
+    return await client.send(request)
 
 
-def run_in_thread() -> None:
-    """
-    Runs the API event loop in its own thread.
+if sys.version_info < (3, 9):
 
-    Required in order to make synchronous requests.
-    """
-    from .api import Api
+    def indent(
+        tree: etree.Element | etree.ElementTree,
+        space: str = "  ",
+        level: int = 0,
+        *,
+        _parent: etree.Element | None = None,
+        _index: int = -1,
+    ) -> None:
+        """Backport of ElementTree.indent"""
+        if not _parent and isinstance(tree, etree.ElementTree):
+            tree = tree.getroot()
+        assert isinstance(tree, etree.Element)
+        for i, node in enumerate(tree):
+            indent(node, space, level + 1, _parent=tree, _index=i)
+        if _parent is not None:
+            if _index == 0:
+                _parent.text = "\n" + (space * level)
+            else:
+                _parent[_index - 1].tail = "\n" + (space * level)
+            if _index == len(_parent) - 1:
+                tree.tail = "\n" + (space * (level - 1))
 
-    if Api._loop:
-        raise RuntimeError("API event loop is already set.")
-
-    def run(loop):
-        try:
-            loop.run_forever()
-        finally:
-            asyncio.gather(
-                *asyncio.all_tasks(loop=loop), loop=loop, return_exceptions=True
-            ).cancel()
-            loop.run_until_complete(Api.session.close())
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
-
-    loop = asyncio.new_event_loop()
-    Api.loop = loop
-    Thread(target=run, args=(loop,), name="NS API Event Loop", daemon=True).start()
+else:
+    from xml.etree.ElementTree import indent

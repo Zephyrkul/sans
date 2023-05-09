@@ -1,1 +1,11 @@
-.
+# required dependencies
+httpx ~= 0.21.1
+importlib_metadata >= 1.4.0; python_version < "3.8"
+
+# optional dependencies
+# [lxml]
+lxml ~= 4.9.2
+lxml-stubs ~= 0.4.0
+
+# [json]
+xmltodict ~= 0.13.0

@@ -1,10 +1,57 @@
-# flake8: noqa: F401
-from .info import (
-    __title__,
-    __author__,
-    __license__,
-    __copyright__,
-    __version__,
-    version_info,
-)
-from .utils import run_in_thread
+# MIT License
+
+# Copyright (c) 2018 - 2023
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import sys as _sys
+
+try:
+    import httpx as _httpx
+except ImportError:
+    pass
+else:
+    # submodules that require httpx
+    from ._state import set_agent as set_agent
+    from .client import *
+    from .errors import *
+    from .limiter import *
+    from .request import *
+    from .response import *
+    from .utils import *
+
+    del _httpx
+
+# submodules that do not require httpx
+from .lock import *
+
+if _sys.version_info < (3, 8):
+    from importlib_metadata import metadata as _metadata
+else:
+    from importlib.metadata import metadata as _metadata
+
+__copyright__ = "Copyright 2019-2023 Zephyrkul"
+
+_meta = _metadata(__name__)
+__title__ = _meta["Name"]
+__author__ = _meta["Author"]
+__license__ = _meta["License"]
+__version__ = _meta["Version"]
+
+del _sys, _metadata, _meta  # not for export

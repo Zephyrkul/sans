@@ -1,0 +1,41 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+default_language_version:
+    python: python3.7
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.265
+    hooks:
+    -   id: ruff
+        args: [ --fix, --exit-non-zero-on-fix ]
+-   repo: https://github.com/PyCQA/isort
+    rev: 5.11.5
+    hooks:
+    -   id: isort
+-   repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+    -   id: black
+-   repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.306
+    hooks:
+    -   id: pyright
+        additional_dependencies:
+            # required dependencies
+        -   httpx ~= 0.21.1
+        -   importlib_metadata >= 1.4.0; python_version < "3.8"
+
+            # optional dependencies
+            # [lxml]
+        -   lxml ~= 4.9.2
+        -   lxml-stubs ~= 0.4.0
+
+            # [json]
+        -   xmltodict ~= 0.13.0
