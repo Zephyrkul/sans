@@ -50,7 +50,7 @@ async def _prepare_async(
 
 
 if sys.version_info < (3, 9):
-
+    # from: https://stackoverflow.com/a/4590052
     def indent(
         tree: etree.Element | etree.ElementTree,
         space: str = "  ",
