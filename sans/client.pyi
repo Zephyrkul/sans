@@ -1,14 +1,35 @@
-from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncIterator, Iterator, Mapping, overload
+from __future__ import annotations
 
-from httpx import (
-    AsyncClient as _XAsyncClient,
-    BaseTransport,
-    Client as _XClient,
-    Limits,
-    Response as _Response,
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncContextManager,
+    Callable,
+    Collection,
+    ContextManager,
+    Mapping,
+    overload,
 )
-from httpx._types import *
+
+import httpx
+
+if TYPE_CHECKING:
+    from typing_extensions import TypedDict
+
+    from httpx._types import (
+        AuthTypes,
+        CertTypes,
+        CookieTypes,
+        HeaderTypes,
+        ProxiesTypes,
+        QueryParamTypes,
+        RequestContent,
+        RequestData,
+        RequestFiles,
+        TimeoutTypes,
+        URLTypes,
+        VerifyTypes,
+    )
 
 from .limiter import RateLimiter
 from .response import Response
@@ -27,13 +48,25 @@ __all__ = [
     "stream",
 ]
 
+class _EventHooks(TypedDict):
+    request: list[Callable[[httpx.Request], None]]
+    response: list[Callable[[httpx.Response], None]]
+
+class _EventHooksParam(TypedDict):
+    request: Collection[Callable[[httpx.Request], None]]
+    response: Collection[Callable[[httpx.Response], None]]
+
 class _ClientMixin:
     @property
     def auth(self) -> RateLimiter: ...
     @auth.setter
     def auth(self, auth: RateLimiter) -> None: ...
+    @property
+    def event_hooks(self) -> _EventHooks: ...
+    @event_hooks.setter
+    def event_hooks(self, value: _EventHooksParam) -> None: ...
 
-class ClientType(_ClientMixin, _XClient):
+class ClientType(_ClientMixin, httpx.Client):
     @overload
     def request(
         self,
@@ -51,7 +84,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def request(
         self,
@@ -73,16 +106,16 @@ class ClientType(_ClientMixin, _XClient):
     @overload
     def send(
         self,
-        request: Request,
+        request: httpx.Request,
         *,
         stream: bool = ...,
         auth: AuthTypes,
         follow_redirects: bool = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def send(
         self,
-        request: Request,
+        request: httpx.Request,
         *,
         stream: bool = ...,
         auth: RateLimiter = ...,
@@ -100,7 +133,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def get(
         self,
@@ -126,7 +159,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def options(
         self,
@@ -152,7 +185,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def head(
         self,
@@ -182,7 +215,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def post(
         self,
@@ -216,7 +249,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def put(
         self,
@@ -250,7 +283,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def patch(
         self,
@@ -280,7 +313,7 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     def delete(
         self,
@@ -295,7 +328,6 @@ class ClientType(_ClientMixin, _XClient):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    @contextmanager
     def stream(
         self,
         method: str,
@@ -312,9 +344,8 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> Iterator[_Response]: ...
+    ) -> ContextManager[httpx.Response]: ...
     @overload
-    @contextmanager
     def stream(
         self,
         method: str,
@@ -331,9 +362,9 @@ class ClientType(_ClientMixin, _XClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> Iterator[Response]: ...
+    ) -> ContextManager[Response]: ...
 
-class AsyncClientType(_ClientMixin, _XAsyncClient):
+class AsyncClientType(_ClientMixin, httpx.AsyncClient):
     @overload
     async def request(
         self,
@@ -351,7 +382,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def request(
         self,
@@ -373,16 +404,16 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
     @overload
     async def send(
         self,
-        request: Request,
+        request: httpx.Request,
         *,
         stream: bool = ...,
         auth: AuthTypes,
         follow_redirects: bool = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def send(
         self,
-        request: Request,
+        request: httpx.Request,
         *,
         stream: bool = ...,
         auth: RateLimiter = ...,
@@ -400,7 +431,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def get(
         self,
@@ -426,7 +457,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def options(
         self,
@@ -452,7 +483,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def head(
         self,
@@ -482,7 +513,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def post(
         self,
@@ -516,7 +547,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def put(
         self,
@@ -550,7 +581,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def patch(
         self,
@@ -580,7 +611,7 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> _Response: ...
+    ) -> httpx.Response: ...
     @overload
     async def delete(
         self,
@@ -595,7 +626,6 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    @asynccontextmanager
     def stream(
         self,
         method: str,
@@ -612,9 +642,8 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> AsyncIterator[_Response]: ...
+    ) -> AsyncContextManager[httpx.Response]: ...
     @overload
-    @asynccontextmanager
     def stream(
         self,
         method: str,
@@ -631,8 +660,32 @@ class AsyncClientType(_ClientMixin, _XAsyncClient):
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> AsyncIterator[Response]: ...
+    ) -> AsyncContextManager[Response]: ...
 
+@overload
+def Client(
+    *,
+    auth: AuthTypes,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    http1: bool = ...,
+    http2: bool = ...,
+    proxies: ProxiesTypes = ...,
+    mounts: Mapping[str, httpx.BaseTransport] = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    limits: httpx.Limits = ...,
+    max_redirects: int = ...,
+    event_hooks: Mapping[str, list[Callable[..., Any]]] = ...,
+    base_url: URLTypes = ...,
+    transport: httpx.BaseTransport = ...,
+    app: Callable[..., Any] = ...,
+    trust_env: bool = ...,
+) -> httpx.Client: ...
+@overload
 def Client(
     *,
     auth: RateLimiter = ...,
@@ -644,17 +697,41 @@ def Client(
     http1: bool = ...,
     http2: bool = ...,
     proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, BaseTransport] = ...,
+    mounts: Mapping[str, httpx.BaseTransport] = ...,
     timeout: TimeoutTypes = ...,
     follow_redirects: bool = ...,
-    limits: Limits = ...,
+    limits: httpx.Limits = ...,
     max_redirects: int = ...,
-    event_hooks: Mapping[str, List[Callable[..., Any]]] = ...,
+    event_hooks: _EventHooksParam = ...,
     base_url: URLTypes = ...,
-    transport: BaseTransport = ...,
+    transport: httpx.BaseTransport = ...,
     app: Callable[..., Any] = ...,
     trust_env: bool = ...,
 ) -> ClientType: ...
+@overload
+def AsyncClient(
+    *,
+    auth: AuthTypes,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    http1: bool = ...,
+    http2: bool = ...,
+    proxies: ProxiesTypes = ...,
+    mounts: Mapping[str, httpx.BaseTransport] = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    limits: httpx.Limits = ...,
+    max_redirects: int = ...,
+    event_hooks: _EventHooksParam = ...,
+    base_url: URLTypes = ...,
+    transport: httpx.BaseTransport = ...,
+    app: Callable[..., Any] = ...,
+    trust_env: bool = ...,
+) -> httpx.AsyncClient: ...
+@overload
 def AsyncClient(
     *,
     auth: RateLimiter = ...,
@@ -666,17 +743,38 @@ def AsyncClient(
     http1: bool = ...,
     http2: bool = ...,
     proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, BaseTransport] = ...,
+    mounts: Mapping[str, httpx.BaseTransport] = ...,
     timeout: TimeoutTypes = ...,
     follow_redirects: bool = ...,
-    limits: Limits = ...,
+    limits: httpx.Limits = ...,
     max_redirects: int = ...,
-    event_hooks: Mapping[str, List[Callable[..., Any]]] = ...,
+    event_hooks: Mapping[str, Collection[Callable[..., Any]]] = ...,
     base_url: URLTypes = ...,
-    transport: BaseTransport = ...,
+    transport: httpx.BaseTransport = ...,
     app: Callable[..., Any] = ...,
     trust_env: bool = ...,
 ) -> AsyncClientType: ...
+@overload
+def request(
+    method: str,
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData[Any, Any] = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def request(
     method: str,
     url: URLTypes,
@@ -696,7 +794,27 @@ def request(
     cert: CertTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
-@contextmanager
+@overload
+def stream(
+    method: str,
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData[Any, Any] = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> ContextManager[httpx.Response]: ...
+@overload
 def stream(
     method: str,
     url: URLTypes,
@@ -715,7 +833,23 @@ def stream(
     verify: VerifyTypes = ...,
     cert: CertTypes = ...,
     trust_env: bool = ...,
-) -> Iterator[Response]: ...
+) -> ContextManager[Response]: ...
+@overload
+def get(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def get(
     url: URLTypes,
     *,
@@ -730,6 +864,22 @@ def get(
     timeout: TimeoutTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def options(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def options(
     url: URLTypes,
     *,
@@ -744,6 +894,22 @@ def options(
     timeout: TimeoutTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def head(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def head(
     url: URLTypes,
     *,
@@ -758,6 +924,26 @@ def head(
     timeout: TimeoutTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def post(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData[Any, Any] = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def post(
     url: URLTypes,
     *,
@@ -776,6 +962,26 @@ def post(
     cert: CertTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def put(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData[Any, Any] = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def put(
     url: URLTypes,
     *,
@@ -794,6 +1000,26 @@ def put(
     cert: CertTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def patch(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData[Any, Any] = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def patch(
     url: URLTypes,
     *,
@@ -812,6 +1038,22 @@ def patch(
     cert: CertTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def delete(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...
+@overload
 def delete(
     url: URLTypes,
     *,

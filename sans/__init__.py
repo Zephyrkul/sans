@@ -22,27 +22,18 @@
 
 import sys as _sys
 
-try:
-    import httpx as _httpx
-except ImportError:
-    pass
-else:
-    # submodules that require httpx
-    from ._state import set_agent as set_agent
-    from .client import *
-    from .errors import *
-    from .limiter import *
-    from .request import *
-    from .response import *
-    from .utils import *
-
-    del _httpx
-
-# submodules that do not require httpx
+from ._state import set_agent as set_agent
+from .auth import *
+from .client import *
+from .errors import *
+from .limiter import *
 from .lock import *
+from .response import *
+from .url import *
+from .utils import *
 
 if _sys.version_info < (3, 8):
-    from importlib_metadata import metadata as _metadata
+    from importlib_metadata import metadata as _metadata  # type: ignore
 else:
     from importlib.metadata import metadata as _metadata
 

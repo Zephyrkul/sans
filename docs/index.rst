@@ -2,10 +2,13 @@ Table of Contents
 =================
 
 .. toctree::
-   api
-   utils
-   objects
+   auth
    errors
+   limiter
+   lock
+   response
+   url
+   utils
 
 
 .. include:: ../README.rst

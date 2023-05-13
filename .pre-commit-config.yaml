@@ -15,10 +15,6 @@ repos:
     hooks:
     -   id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
--   repo: https://github.com/PyCQA/isort
-    rev: 5.11.5
-    hooks:
-    -   id: isort
 -   repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
@@ -35,7 +31,14 @@ repos:
             # optional dependencies
             # [lxml]
         -   lxml ~= 4.9.2
-        -   lxml-stubs ~= 0.4.0
 
             # [json]
         -   xmltodict ~= 0.13.0
+
+            # typing
+        -   typing_extensions
+        -   lxml-stubs @ https://github.com/lxml/lxml-stubs/archive/master.zip#egg=lxml-stubs
+ci:
+    skip:
+    # CI doesn't like pip scripts calling their own node, so skip this for now
+    -   pyright

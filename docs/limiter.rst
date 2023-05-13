@@ -1,7 +1,7 @@
-Objects
-=======
+Rate Limiting
+=============
 
-.. automodule:: sans.objects
+.. automodule:: sans.limiter
     :members:
     :undoc-members:
     :show-inheritance:

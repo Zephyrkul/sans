@@ -6,17 +6,18 @@ import argparse
 import shlex
 import sys
 import traceback
-from typing import Any
-from xml.etree import ElementTree as etree
+from typing import TYPE_CHECKING, Any
+from xml.etree import ElementTree as ET
 
 import sans
 
 try:
-    from rich import print  # type: ignore
-    from rich.syntax import Syntax  # type: ignore
+    if not TYPE_CHECKING:
+        from rich import print  # type: ignore
+        from rich.syntax import Syntax  # type: ignore
 except ImportError:
 
-    def Syntax(arg: Any, *_: Any, **__: Any) -> Any:
+    def Syntax(arg: Any, *_args: Any, **_kwargs: Any) -> Any:
         return arg
 
 
@@ -24,80 +25,87 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="SANS Console Entry",
-        prog="sans",
+        prog=sans.__name__,
         epilog="Any unknown args will be used to build the API request.",
     )
-    parser.add_argument(
-        "--version", action="version", version="%(prog)s " + sans.__version__
-    )
     parser.add_argument("--agent", help="set the script's user agent")
+    parser.add_argument(
+        "--headers",
+        action="store_true",
+        help="print the headers of the server response",
+    )
     parser.add_argument(
         "--quit",
         action="store_true",
         help="quit the console program loop after this run",
     )
-    parser.usage = parser.format_usage() + " ..."
-    known, unknown = parser.parse_known_args()
-    if not any(vars(known).values()):
-        parser.print_help(sys.stderr)
-    if known.quit and not unknown:
-        print("Okay, I'll just leave I guess...", file=sys.stderr)
-        return
-    sans.set_agent(known.agent or input("User agent: "))
-    args: tuple[argparse.Namespace, list[str]] | tuple[()] = ()
+    parser.add_argument(
+        "--url", action="store_true", help="print the URL of the generated request"
+    )
+    parser.add_argument("--version", action="version", version=sans.__version__)
+    input_: list[str] | None = None
     with sans.Client() as client:
         while True:
-            print()
-            if not args and unknown:
-                args = (known, unknown)
-            else:
-                args = parser.parse_known_args(shlex.split(input(parser.prog + " ")))
-                if args[0].agent:
-                    print(
-                        "You can't change the agent in the middle of the script.",
-                        file=sys.stderr,
-                    )
-            known, unknown = args
-            if not unknown:
-                if known.quit:
-                    print("No query provided. Exiting...", file=sys.stderr)
-                    return
-                print("No query provided.", file=sys.stderr)
-                parser.print_usage(sys.stderr)
-                continue
-            parameters: dict[str, list[str]] = {}
-            key = "q"
-            for arg in unknown:
-                if arg.startswith("--"):
-                    if key != "q":
+            print(file=sys.stderr)
+            known, unknown = parser.parse_known_args(input_)
+            try:
+                if known.agent:
+                    try:
+                        sans.set_agent(known.agent)
+                    except RuntimeError:
                         print(
-                            "No value provided for key {!r}".format(key),
+                            "You can't change the agent in the middle of the script.",
                             file=sys.stderr,
                         )
-                        continue
-                    key = arg[2:]
-                else:
-                    parameters.setdefault(key, []).append(arg)
-                    key = "q"
-            if key != "q":
-                print("No value provided for key {!r}".format(key), file=sys.stderr)
-                continue
-            try:
-                with client.stream("GET", sans.API_URL, params=parameters) as response:
-                    print(response.url, end="\n\n")
+                if not unknown:
+                    if known.quit:
+                        print("No query provided. Exiting...", file=sys.stderr)
+                        return
+                    print("No query provided.", file=sys.stderr)
+                    parser.print_help(sys.stderr)
+                    continue
+                parameters: dict[str, list[str]] = {}
+                key = "q"
+                for arg in unknown:
+                    if arg.startswith("--"):
+                        if key != "q":
+                            print(
+                                "No value provided for key {!r}".format(key),
+                                file=sys.stderr,
+                            )
+                        key = arg[2:]
+                    else:
+                        parameters.setdefault(key, []).append(arg)
+                        key = "q"
+                if key != "q":
+                    print("No value provided for key {!r}".format(key), file=sys.stderr)
+                with client.stream(
+                    "GET",
+                    sans.World(**{k: "+".join(v) for k, v in parameters.items()}),
+                ) as response:
+                    if known.url:
+                        print(response.url, end="\n\n")
+                    if known.headers:
+                        print(response.headers, end="\n\n")
                     for element in response.iter_xml():
                         pretty_print(element)
+                if known.quit:
+                    print("Exiting...", file=sys.stderr)
+                    return
             except Exception:
                 traceback.print_exc()
-            if known.quit:
-                print("Exiting...", file=sys.stderr)
-                return
+            except BaseException:
+                known.quit = True  # bypass the finally block below
+                raise
+            finally:
+                if not known.quit:
+                    input_ = shlex.split(input(f">>> {parser.prog} "))
 
 
-def pretty_print(element: etree.Element) -> None:
+def pretty_print(element: ET.Element) -> None:
     sans.indent(element)
-    print(Syntax(etree.tostring(element, encoding="unicode").strip(), "xml"))
+    print(Syntax(ET.tostring(element, encoding="unicode").strip(), "xml"))
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

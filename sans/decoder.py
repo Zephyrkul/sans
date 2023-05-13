@@ -1,38 +1,63 @@
 from __future__ import annotations
 
 import codecs
-from operator import attrgetter, itemgetter
+import zlib
+from operator import itemgetter
 from typing import TYPE_CHECKING, Iterable
-from xml.etree.ElementTree import Element, XMLPullParser
+from xml.etree.ElementTree import Element, XMLParser, XMLPullParser
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
 
 
+class GZipDecoder:
+    def __init__(self) -> None:
+        self._decompressobj = zlib.decompressobj(zlib.MAX_WBITS | 16)
+
+    def decode(self, data: bytes) -> bytes:
+        return self._decompressobj.decompress(data)
+
+    def flush(self) -> bytes:
+        return self._decompressobj.flush()
+
+
 class XMLDecoder:
-    _events = ["end"]
-    _read_events = property(attrgetter("_pull_parser.read_events"))
+    def __init__(self, encoding: str | None = None) -> None:
+        self._parser = XMLParser(encoding=encoding)
 
-    def __init__(self, encoding: str = "utf-8") -> None:
-        self._decoder = codecs.getincrementaldecoder(encoding)("xmlcharrefreplace")
-        self._pull_parser = XMLPullParser(self._events)
+    def decode(self, data: bytes) -> None:
+        self._parser.feed(data)
 
-    def feed(self, data: bytes) -> Iterable[Element]:
-        self._pull_parser.feed(self._decoder.decode(data, False))
+    def flush(self) -> Element:
+        return self._parser.close()
+
+
+class XMLChunker:
+    def __init__(self, *, encoding: str | None = None) -> None:
+        self._decoder_chain: list[codecs.IncrementalDecoder] = []
+        if encoding:
+            self._decoder_chain.append(
+                codecs.getincrementaldecoder(encoding)("replace")
+            )
+        self._pull_parser = XMLPullParser(["start", "end"])
+        self._root: Element | None = None
+
+    def decode(self, data: bytes) -> Iterable[Element]:
+        for chain in self._decoder_chain:
+            data = chain.decode(data, False)  # type: ignore
+        self._pull_parser.feed(data)
         return map(itemgetter(1), self._read_events())
 
-    def flush(self) -> Iterable[Element]:
-        self._pull_parser.feed(self._decoder.decode(b"", True))
+    def flush(self, data: bytes = b"") -> Iterable[Element]:
+        for chain in self._decoder_chain:
+            data = chain.decode(data, True)  # type: ignore
+        self._pull_parser.feed(data)
         self._pull_parser.close()
         return map(itemgetter(1), self._read_events())
 
-
-class XMLChunker(XMLDecoder):
-    _events = ["start", "end"]
-    _root: Element | None = None
-
     def _read_events(self) -> Iterable[tuple[Literal["end"], Element]]:
         depth = 0
+        element: Element
         for event, element in self._pull_parser.read_events():
             if not self._root:
                 self._root = element
@@ -46,43 +71,57 @@ class XMLChunker(XMLDecoder):
 
 
 try:
-    from lxml.etree import XMLPullParser as LXMLPullParser, _Element as LElement
+    from lxml.etree import (
+        XMLParser as LXMLParser,
+        XMLPullParser as LXMLPullParser,
+        _Element as LElement,  # type: ignore
+    )
 except ImportError:
     pass
 else:
 
     class LXMLDecoder:
-        _events = ["end"]
-        _read_events = property(attrgetter("_pull_parser.read_events"))
+        def __init__(self, encoding: str | None = None) -> None:
+            self._parser = LXMLParser(encoding=encoding)
 
-        def __init__(self, encoding: str = "utf-8") -> None:
-            self._decoder = codecs.getincrementaldecoder(encoding)("xmlcharrefreplace")
-            # the typehint below is close enough due to missing stubs
-            self._pull_parser: XMLPullParser = LXMLPullParser(self._events)
+        def decode(self, data: bytes) -> None:
+            self._parser.feed(data)
 
-        def feed(self, data: bytes) -> Iterable[LElement]:
-            self._pull_parser.feed(self._decoder.decode(data, False))
+        def flush(self) -> LElement:
+            return self._parser.close()
+
+    class LXMLChunker:
+        def __init__(self, *, encoding: str | None = None) -> None:
+            self._decoder_chain: list[codecs.IncrementalDecoder] = []
+            if encoding:
+                self._decoder_chain.append(
+                    codecs.getincrementaldecoder(encoding)("replace")
+                )
+            self._pull_parser = LXMLPullParser(["start", "end"])
+
+        def decode(self, data: bytes) -> Iterable[LElement]:
+            for chain in self._decoder_chain:
+                data = chain.decode(data, False)  # type: ignore
+            self._pull_parser.feed(data)
             return map(itemgetter(1), self._read_events())
 
-        def flush(self) -> Iterable[LElement]:
-            self._pull_parser.feed(self._decoder.decode(b"", True))
+        def flush(self, data: bytes = b"") -> Iterable[LElement]:
+            for chain in self._decoder_chain:
+                data = chain.decode(data, True)  # type: ignore
+            self._pull_parser.feed(data)
             self._pull_parser.close()
             return map(itemgetter(1), self._read_events())
 
-    class LXMLChunker(LXMLDecoder):
-        _events = ["start", "end"]
-
         def _read_events(self) -> Iterable[tuple[Literal["end"], LElement]]:
-            element: LElement
             depth = 0
-            for event, element in self._pull_parser.read_events():
+            element: LElement
+            for event, element in self._pull_parser.read_events():  # type: ignore
+                if not self._root:
+                    self._root = element
                 if event == "start":
                     depth += 1
-                else:
-                    assert event == "end"
+                elif event == "end":
                     depth -= 1
                     if depth == 1:
                         yield event, element
-                        element.clear(keep_tail=True)  # type: ignore
-                        while element.getprevious() is not None:
-                            del element.getparent()[0]  # type: ignore
+                        self._root.clear()

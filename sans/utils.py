@@ -5,8 +5,8 @@ from typing import Any, Coroutine, Mapping, overload
 from xml.etree import ElementTree as etree
 
 from .client import AsyncClientType, ClientType
-from .request import Request
 from .response import Response
+from .url import World
 
 __all__ = ["prepare_and_execute", "indent"]
 
@@ -32,46 +32,61 @@ def prepare_and_execute(
 ) -> Response | Coroutine[Any, Any, Response]:
     if isinstance(client, AsyncClientType):
         return _prepare_async(client, *shards, **parameters)
-    request = Request(*shards, **parameters, mode="prepare")
-    response = client.send(request)
-    token: str = response.xml.find("TOKEN").text  # type: ignore
-    request = Request(*shards, **parameters, mode="execute", token=token)
-    return client.send(request)
+    request = World(*shards, **parameters, mode="prepare")
+    response = client.get(request)
+    token: str = response.xml.find("SUCCESS").text  # type: ignore
+    request = World(*shards, **parameters, mode="execute", token=token)
+    return client.get(request)
 
 
 async def _prepare_async(
     client: AsyncClientType, *shards: str | Mapping[str, str], **parameters: str
 ) -> Response:
-    request = Request(*shards, **parameters, mode="prepare")
-    response = await client.send(request)
-    token: str = response.xml.find("TOKEN").text  # type: ignore
-    request = Request(*shards, **parameters, mode="execute", token=token)
-    return await client.send(request)
+    request = World(*shards, **parameters, mode="prepare")
+    response = await client.get(request)
+    token: str = response.xml.find("SUCCESS").text  # type: ignore
+    request = World(*shards, **parameters, mode="execute", token=token)
+    return await client.get(request)
 
 
 if sys.version_info < (3, 9):
-    # from: https://stackoverflow.com/a/4590052
+    # from: https://github.com/python/cpython/blob/3.11/Lib/xml/etree/ElementTree.py#L1154
     def indent(
-        tree: etree.Element | etree.ElementTree,
-        space: str = "  ",
-        level: int = 0,
-        *,
-        _parent: etree.Element | None = None,
-        _index: int = -1,
-    ) -> None:
-        """Backport of ElementTree.indent"""
-        if not _parent and isinstance(tree, etree.ElementTree):
+        tree: etree.Element | etree.ElementTree, space: str = "  ", level: int = 0
+    ):
+        if isinstance(tree, etree.ElementTree):
             tree = tree.getroot()
-        assert isinstance(tree, etree.Element)
-        for i, node in enumerate(tree):
-            indent(node, space, level + 1, _parent=tree, _index=i)
-        if _parent is not None:
-            if _index == 0:
-                _parent.text = "\n" + (space * level)
-            else:
-                _parent[_index - 1].tail = "\n" + (space * level)
-            if _index == len(_parent) - 1:
-                tree.tail = "\n" + (space * (level - 1))
+        if level < 0:
+            raise ValueError(f"Initial indentation level must be >= 0, got {level}")
+        if not len(tree):
+            return
+
+        # Reduce the memory consumption by reusing indentation strings.
+        indentations = ["\n" + level * space]
+
+        def _indent_children(elem: etree.Element, level: int):
+            # Start a new indentation level for the first child.
+            child_level = level + 1
+            try:
+                child_indentation = indentations[child_level]
+            except IndexError:
+                child_indentation = indentations[level] + space
+                indentations.append(child_indentation)
+
+            if not elem.text or not elem.text.strip():
+                elem.text = child_indentation
+
+            for child in elem:
+                if len(child):
+                    _indent_children(child, child_level)
+                if not child.tail or not child.tail.strip():
+                    child.tail = child_indentation
+
+            # Dedent after the last child by overwriting the previous indentation.
+            if not child.tail.strip():  # type: ignore
+                child.tail = indentations[level]  # type: ignore
+
+        _indent_children(tree, 0)
 
 else:
     from xml.etree.ElementTree import indent

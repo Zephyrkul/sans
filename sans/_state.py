@@ -1,35 +1,31 @@
 from __future__ import annotations
 
-import sys
-import types
-from functools import partial
-from typing import Callable
+from typing import TYPE_CHECKING
 
-import httpx
+if TYPE_CHECKING:
+    from typing_extensions import Literal
 
 from .lock import ResetLock
 
 __all__ = []
 lock = ResetLock()
-agent: str
-set_agent: Callable[[str], None]
+agent: str = ""
 
 
-class _State(types.ModuleType):
-    # write-once, read-any property
-    @partial(property, None)
-    def agent(self, value: str):
-        from . import __version__
+def set_agent(new_agent: str, *, _force: Literal[False] = False) -> None:
+    """
+    Sets sans' User-Agent header.
 
-        assert value and isinstance(value, str)
-        value = (
-            f"{value} Python/{sys.version_info[0]}.{sys.version_info[1]}"
-            f" httpx/{httpx.__version__} sans/{__version__}"
-        )
-        type(self).agent = property(lambda _: value)
-
-    def set_agent(self, value: str) -> None:
-        self.agent = value
-
-
-sys.modules[__name__].__class__ = _State
+    Parameters
+    ----------
+    agent: str
+        The User-Agent header to use.
+        Your nation name and a method of contact, like an email address, are recommended.
+    _force: bool
+        Forcibly override the User-Agent header even after it's already been set.
+        Not recommended: https://www.nationstates.net/pages/api.html#terms
+    """
+    global agent
+    if agent and not _force:
+        raise RuntimeError("Agent cannot be re-set")
+    agent = new_agent

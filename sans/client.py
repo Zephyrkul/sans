@@ -1,16 +1,18 @@
-from functools import partial
-from typing import Any, ContextManager
+from __future__ import annotations
+
+from functools import wraps
+from typing import TYPE_CHECKING, Callable, TypeVar
+
+if TYPE_CHECKING:
+    from typing_extensions import ParamSpec
+
+    _P = ParamSpec("_P")
+    _R = TypeVar("_R")
+
+import httpx
+from httpx import AsyncClient as AsyncClientType, Client as ClientType
 
 from .limiter import RateLimiter
-from .response import Response
-
-from httpx import (  # isort: skip
-    AsyncClient as AsyncClientType,
-    Client as ClientType,
-    request as _request,  # type: ignore
-    stream as _stream,  # type: ignore
-)
-
 
 __all__ = [
     "Client",
@@ -25,36 +27,28 @@ __all__ = [
     "request",
     "stream",
 ]
+_limiter = RateLimiter()
 
 
-def Client(*, auth: Any = None, **kwargs: Any):
-    if auth is None or not isinstance(auth, RateLimiter):
-        auth = RateLimiter()
-    return ClientType(auth=auth, **kwargs)
+def _ensure_auth(wrapped: Callable[_P, _R]) -> Callable[_P, _R]:
+    @wraps(wrapped)
+    def inner(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        if "auth" not in kwargs:
+            kwargs["auth"] = _limiter
+        return wrapped(*args, **kwargs)
+
+    return inner
 
 
-def AsyncClient(*, auth: Any = None, **kwargs: Any):
-    if auth is None or not isinstance(auth, RateLimiter):
-        auth = RateLimiter()
-    return AsyncClientType(auth=auth, **kwargs)
+Client = _ensure_auth(ClientType)  # type: ignore
+AsyncClient = _ensure_auth(AsyncClientType)  # type: ignore
 
-
-def request(*args: Any, auth: Any = None, **kwargs: Any) -> Response:
-    if auth is None or not isinstance(auth, RateLimiter):
-        auth = RateLimiter()
-    return _request(*args, auth=auth, **kwargs)  # type: ignore
-
-
-delete = partial(request, "DELETE")
-get = partial(request, "GET")
-head = partial(request, "HEAD")
-options = partial(request, "OPTIONS")
-patch = partial(request, "PATCH")
-post = partial(request, "POST")
-put = partial(request, "PUT")
-
-
-def stream(*args: Any, auth: Any = None, **kwargs: Any) -> ContextManager[Response]:
-    if auth is None or not isinstance(auth, RateLimiter):
-        auth = RateLimiter()
-    return _stream(*args, auth=auth, **kwargs)  # type: ignore
+request = _ensure_auth(httpx.request)  # type: ignore
+delete = _ensure_auth(httpx.delete)
+get = _ensure_auth(httpx.get)
+head = _ensure_auth(httpx.head)
+options = _ensure_auth(httpx.options)
+patch = _ensure_auth(httpx.patch)  # type: ignore
+post = _ensure_auth(httpx.post)  # type: ignore
+put = _ensure_auth(httpx.put)  # type: ignore
+stream = _ensure_auth(httpx.stream)  # type: ignore

@@ -8,10 +8,9 @@ from functools import partial
 from operator import add
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar
-from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    from typing_extensions import Literal, Self
+    from typing_extensions import Literal
 
 __all__ = ["ResetLock"]
 
@@ -37,20 +36,6 @@ class _Timer(threading.Timer):
         return super().run()
 
 
-class _NullContext:
-    def __enter__(self):
-        pass
-
-    def __exit__(self, *_):
-        pass
-
-    async def __aenter__(self):
-        pass
-
-    async def __aexit__(self, *_):
-        pass
-
-
 # I would love to make this utilize a semaphore instead
 # However, since multiple clients can exist on one machine,
 # locking and checking the headers sequentially is a requirement
@@ -66,7 +51,7 @@ class ResetLock:
             response = ...
             lock.maybe_defer(response.headers)
 
-    Note that, when using :module:`httpx`,
+    Note that, when using :mod:`httpx`,
     using :class:`RateLimiter` will manage a global lock for you.
     """
 
@@ -171,15 +156,6 @@ class ResetLock:
             return
         xrlr = _get_as_int(response_headers, "RateLimit-Reset", 0)
         self._deferred = call_later(xrlr, self._release)
-
-    def maybe_lock(self, hostname: str, path: str | None = None) -> Self | _NullContext:
-        if not path:
-            url = urlparse(hostname)
-            hostname = url.hostname or ""
-            path = url.path
-        if hostname == "www.nationstates.net" and path == "/cgi-bin/api.cgi":
-            return self
-        return _NullContext()
 
     def locked(self):
         return self._lock.locked()

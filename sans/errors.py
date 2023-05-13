@@ -16,6 +16,7 @@ else:
 
 
 __all__ = [
+    "AgentNotSetError",
     "HTTPStatusError",  # re-export
     "ClientError",
     "BadRequest",
@@ -26,6 +27,10 @@ __all__ = [
     "TooManyRequests",
     "ServerError",
 ]
+
+
+class AgentNotSetError(RuntimeError):
+    pass
 
 
 def narrow(original: HTTPStatusError) -> HTTPStatusError:
