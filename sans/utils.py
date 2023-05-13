@@ -34,6 +34,7 @@ def prepare_and_execute(
         return _prepare_async(client, *shards, **parameters)
     request = World(*shards, **parameters, mode="prepare")
     response = client.get(request)
+    response.raise_for_status()
     token: str = response.xml.find("SUCCESS").text  # type: ignore
     request = World(*shards, **parameters, mode="execute", token=token)
     return client.get(request)
@@ -44,6 +45,7 @@ async def _prepare_async(
 ) -> Response:
     request = World(*shards, **parameters, mode="prepare")
     response = await client.get(request)
+    response.raise_for_status()
     token: str = response.xml.find("SUCCESS").text  # type: ignore
     request = World(*shards, **parameters, mode="execute", token=token)
     return await client.get(request)
