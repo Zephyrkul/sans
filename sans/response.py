@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_LXML = False  # type: ignore
 else:
-    from .decoder import LXMLChunker, LXMLDecoder
+    from .decoder import LXMLDecoder
 
 __all__ = ["Response"]
 
@@ -100,29 +100,6 @@ class Response(httpx.Response):
                 decoder.decode(content)
                 self._lxml = decoder.flush()
             return self._lxml
-
-        def iter_lxml(self) -> Iterator[_Element]:
-            decoder = LXMLChunker(encoding=self.encoding)
-            chunker = (
-                self.iter_gzip()
-                if self.content_type.endswith(("/x-gzip", "/gzip"))
-                else self.iter_bytes()
-            )
-            yield from chain.from_iterable(map(decoder.decode, chunker))
-            yield from decoder.flush()
-
-        async def aiter_lxml(self) -> AsyncIterator[_Element]:
-            decoder = LXMLChunker(encoding=self.encoding)
-            chunker = (
-                self.aiter_gzip()
-                if self.content_type.endswith(("/x-gzip", "/gzip"))
-                else self.aiter_bytes()
-            )
-            async for chunk in chunker:
-                for element in decoder.decode(chunk):
-                    yield element
-            for element in decoder.flush():
-                yield element
 
     def raise_for_status(self) -> None:
         try:

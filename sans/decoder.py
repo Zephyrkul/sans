@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import codecs
 import zlib
+from functools import reduce
 from operator import itemgetter
 from typing import TYPE_CHECKING, Iterable
 from xml.etree.ElementTree import Element, XMLParser, XMLPullParser
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
+
+
+def _reducer(final: bool):
+    def inner(data: bytes, decoder: codecs.IncrementalDecoder) -> bytes:
+        return decoder.decode(data, final)  # type: ignore
+
+    return inner
 
 
 class GZipDecoder:
@@ -40,40 +48,35 @@ class XMLChunker:
                 codecs.getincrementaldecoder(encoding)("replace")
             )
         self._pull_parser = XMLPullParser(["start", "end"])
-        self._root: Element | None = None
+        self._path: list[Element] = []
 
     def decode(self, data: bytes) -> Iterable[Element]:
-        for chain in self._decoder_chain:
-            data = chain.decode(data, False)  # type: ignore
+        data = reduce(_reducer(False), self._decoder_chain, data)
         self._pull_parser.feed(data)
         return map(itemgetter(1), self._read_events())
 
-    def flush(self, data: bytes = b"") -> Iterable[Element]:
-        for chain in self._decoder_chain:
-            data = chain.decode(data, True)  # type: ignore
+    def flush(self) -> Iterable[Element]:
+        data = reduce(_reducer(True), self._decoder_chain, b"")
         self._pull_parser.feed(data)
         self._pull_parser.close()
         return map(itemgetter(1), self._read_events())
 
     def _read_events(self) -> Iterable[tuple[Literal["end"], Element]]:
-        depth = 0
         element: Element
+        path = self._path
         for event, element in self._pull_parser.read_events():
-            if not self._root:
-                self._root = element
             if event == "start":
-                depth += 1
+                path.append(element)
             elif event == "end":
-                depth -= 1
-                if depth == 1:
+                path.pop()
+                if len(path) == 1:
                     yield event, element
-                    self._root.clear()
+                    path[0].clear()
 
 
 try:
     from lxml.etree import (
         XMLParser as LXMLParser,
-        XMLPullParser as LXMLPullParser,
         _Element as LElement,  # type: ignore
     )
 except ImportError:
@@ -89,39 +92,3 @@ else:
 
         def flush(self) -> LElement:
             return self._parser.close()
-
-    class LXMLChunker:
-        def __init__(self, *, encoding: str | None = None) -> None:
-            self._decoder_chain: list[codecs.IncrementalDecoder] = []
-            if encoding:
-                self._decoder_chain.append(
-                    codecs.getincrementaldecoder(encoding)("replace")
-                )
-            self._pull_parser = LXMLPullParser(["start", "end"])
-
-        def decode(self, data: bytes) -> Iterable[LElement]:
-            for chain in self._decoder_chain:
-                data = chain.decode(data, False)  # type: ignore
-            self._pull_parser.feed(data)
-            return map(itemgetter(1), self._read_events())
-
-        def flush(self, data: bytes = b"") -> Iterable[LElement]:
-            for chain in self._decoder_chain:
-                data = chain.decode(data, True)  # type: ignore
-            self._pull_parser.feed(data)
-            self._pull_parser.close()
-            return map(itemgetter(1), self._read_events())
-
-        def _read_events(self) -> Iterable[tuple[Literal["end"], LElement]]:
-            depth = 0
-            element: LElement
-            for event, element in self._pull_parser.read_events():  # type: ignore
-                if not self._root:
-                    self._root = element
-                if event == "start":
-                    depth += 1
-                elif event == "end":
-                    depth -= 1
-                    if depth == 1:
-                        yield event, element
-                        self._root.clear()
