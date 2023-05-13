@@ -1,7 +1,5 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-default_language_version:
-    python: python3.7
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
@@ -9,6 +7,7 @@ repos:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-yaml
+    -   id: check-toml
     -   id: check-added-large-files
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.0.265
@@ -25,7 +24,7 @@ repos:
     -   id: pyright
         additional_dependencies:
             # required dependencies
-        -   httpx ~= 0.21.1
+        -   httpx ~= 0.23
         -   importlib_metadata >= 1.4.0; python_version < "3.8"
 
             # optional dependencies
