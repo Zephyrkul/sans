@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncContextManager,
     Callable,
@@ -10,26 +9,23 @@ from typing import (
     Mapping,
     overload,
 )
+from typing_extensions import TypedDict
 
 import httpx
-
-if TYPE_CHECKING:
-    from typing_extensions import TypedDict
-
-    from httpx._types import (
-        AuthTypes,
-        CertTypes,
-        CookieTypes,
-        HeaderTypes,
-        ProxiesTypes,
-        QueryParamTypes,
-        RequestContent,
-        RequestData,
-        RequestFiles,
-        TimeoutTypes,
-        URLTypes,
-        VerifyTypes,
-    )
+from httpx._types import (
+    AuthTypes,
+    CertTypes,
+    CookieTypes,
+    HeaderTypes,
+    ProxiesTypes,
+    QueryParamTypes,
+    RequestContent,
+    RequestData,
+    RequestFiles,
+    TimeoutTypes,
+    URLTypes,
+    VerifyTypes,
+)
 
 from .limiter import RateLimiter
 from .response import Response
