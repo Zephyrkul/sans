@@ -29,10 +29,10 @@ repos:
 
             # optional dependencies
             # [lxml]
-        -   lxml ~= 4.9.2
+        -   lxml ~= 4.9
 
             # [json]
-        -   xmltodict ~= 0.13.0
+        -   xmltodict ~= 0.13
 
             # typing
         -   typing_extensions

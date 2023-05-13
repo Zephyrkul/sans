@@ -53,13 +53,13 @@ sans = 'sans.__main__:main'
 
 [project.optional-dependencies]
 docs = [
-    'Sphinx ~= 5.3.0'
+    'Sphinx ~= 5.3'
 ]
 lxml = [
-    'lxml ~= 4.9.2'
+    'lxml ~= 4.9'
 ]
 json = [
-    'xmltodict ~= 0.13.0'
+    'xmltodict ~= 0.13'
 ]
 
 [tool.setuptools_scm]
