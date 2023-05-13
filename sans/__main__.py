@@ -81,7 +81,7 @@ def main() -> None:
                     print("No value provided for key {!r}".format(key), file=sys.stderr)
                 with client.stream(
                     "GET",
-                    sans.World(**{k: "+".join(v) for k, v in parameters.items()}),
+                    sans.World(**{k: " ".join(v) for k, v in parameters.items()}),
                 ) as response:
                     if known.url:
                         print(response.url, end="\n\n")

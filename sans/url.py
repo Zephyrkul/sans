@@ -41,7 +41,7 @@ def World(*shards: str | Mapping[str, str], **parameters: str) -> httpx.URL:
         else:
             q.append(shard.pop("q", None))  # type: ignore
             query.update(shard)  # type: ignore
-    query.update(parameters, q="+".join(map(str, filter(None, q))))
+    query.update(parameters, q=" ".join(map(str, filter(None, q))))
     if query.get("a", "").lower() == "sendtg":
         raise RuntimeError("sans does not currently support the telegram API.")
     return API_URL.copy_with(params=query)
