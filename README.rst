@@ -3,15 +3,9 @@ sans
 
 |pypi| |Code style: black| |Build Status| |Documentation Status|
 
-Synchronous / Asynchronous NationStates (Python wrapper for the
-NationStates API)
+**S**\ ynchronous / **A**\ synchronous **N**\ ation\ **S**\ tates
 
-Note
-~~~~
-While this library can be run in a single-threaded, synchronous environment,
-it is highly recommended to use Dolph's pynationstates
-(`GitHub <https://github.com/DolphDev/pynationstates>`_
-| `PyPI <https://pypi.org/project/nationstates/>`_) for simpler scripts.
+An extension for `HTTPX <https://www.python-httpx.org/>`_ for the `NationStates API <https://www.nationstates.net/pages/api.html>`_
 
 Installing
 ----------
