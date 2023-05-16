@@ -37,11 +37,11 @@ def narrow(original: HTTPStatusError) -> HTTPStatusError:
     code = original.response.status_code
     match = (sys.maxsize, HTTPStatusError)
     for exc in globals().values():
-        if not issubclass(exc, _HTTPStatusError):
-            continue
         if exc is HTTPStatusError:
             continue
-        codes = exc._codes  # type: ignore
+        if not isinstance(exc, type) or not issubclass(exc, _HTTPStatusError):
+            continue
+        codes = exc._codes
         if code in codes:
             match = min(match, (len(codes), exc))
     _, best = match
