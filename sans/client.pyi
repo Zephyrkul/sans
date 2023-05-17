@@ -7,6 +7,7 @@ from typing import (
     Collection,
     ContextManager,
     Mapping,
+    NewType,
     overload,
 )
 from typing_extensions import TypedDict
@@ -62,7 +63,7 @@ class _ClientMixin:
     @event_hooks.setter
     def event_hooks(self, value: _EventHooksParam) -> None: ...
 
-class ClientType(_ClientMixin, httpx.Client):
+class _ClientType(_ClientMixin, httpx.Client):
     @overload
     def request(
         self,
@@ -360,7 +361,7 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> ContextManager[httpx.Response]: ...
 
-class AsyncClientType(_ClientMixin, httpx.AsyncClient):
+class _AsyncClientType(_ClientMixin, httpx.AsyncClient):
     @overload
     async def request(
         self,
@@ -657,6 +658,9 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
     ) -> AsyncContextManager[httpx.Response]: ...
+
+ClientType = NewType("ClientType", _ClientType)
+AsyncClientType = NewType("AsyncClientType", _AsyncClientType)
 
 @overload
 def Client(

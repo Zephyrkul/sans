@@ -4,6 +4,8 @@ import sys
 from typing import Any, Coroutine, overload
 from xml.etree import ElementTree as etree
 
+import httpx
+
 from .auth import NSAuth
 from .client import AsyncClientType, ClientType
 from .response import Response
@@ -33,7 +35,7 @@ def prepare_and_execute(
     c: str,
     **parameters: str,
 ) -> Response | Coroutine[Any, Any, Response]:
-    if isinstance(client, AsyncClientType):
+    if isinstance(client, httpx.AsyncClient):
         return _prepare_async(client, auth, nation, c, **parameters)
     request = Command(nation, c, **parameters, mode="prepare")
     response = client.get(request, auth=auth)
