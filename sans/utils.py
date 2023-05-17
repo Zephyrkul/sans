@@ -1,54 +1,57 @@
 from __future__ import annotations
 
 import sys
-from typing import Any, Coroutine, Mapping, overload
+from typing import Any, Coroutine, overload
 from xml.etree import ElementTree as etree
 
+from .auth import NSAuth
 from .client import AsyncClientType, ClientType
 from .response import Response
-from .url import World
+from .url import Command
 
 __all__ = ["prepare_and_execute", "indent"]
 
 
 @overload
 def prepare_and_execute(
-    client: ClientType, *shards: str | Mapping[str, str], **parameters: str
+    client: ClientType, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
     ...
 
 
 @overload
 async def prepare_and_execute(
-    client: AsyncClientType, *shards: str | Mapping[str, str], **parameters: str
+    client: AsyncClientType, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
     ...
 
 
 def prepare_and_execute(
     client: ClientType | AsyncClientType,
-    *shards: str | Mapping[str, str],
+    auth: NSAuth,
+    nation: str,
+    c: str,
     **parameters: str,
 ) -> Response | Coroutine[Any, Any, Response]:
     if isinstance(client, AsyncClientType):
-        return _prepare_async(client, *shards, **parameters)
-    request = World(*shards, **parameters, mode="prepare")
-    response = client.get(request)
+        return _prepare_async(client, auth, nation, c, **parameters)
+    request = Command(nation, c, **parameters, mode="prepare")
+    response = client.get(request, auth=auth)
     response.raise_for_status()
     token: str = response.xml.find("SUCCESS").text  # type: ignore
-    request = World(*shards, **parameters, mode="execute", token=token)
-    return client.get(request)
+    request = Command(nation, c, **parameters, mode="execute", token=token)
+    return client.get(request, auth=auth)
 
 
 async def _prepare_async(
-    client: AsyncClientType, *shards: str | Mapping[str, str], **parameters: str
+    client: AsyncClientType, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
-    request = World(*shards, **parameters, mode="prepare")
-    response = await client.get(request)
+    request = Command(nation, c, **parameters, mode="prepare")
+    response = await client.get(request, auth=auth)
     response.raise_for_status()
     token: str = response.xml.find("SUCCESS").text  # type: ignore
-    request = World(*shards, **parameters, mode="execute", token=token)
-    return await client.get(request)
+    request = Command(nation, c, **parameters, mode="execute", token=token)
+    return await client.get(request, auth=auth)
 
 
 if sys.version_info < (3, 9):

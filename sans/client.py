@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import wraps
-from typing import TYPE_CHECKING, Callable, TypeVar
+from typing import TYPE_CHECKING, Callable, NewType, TypeVar
 
 if TYPE_CHECKING:
     from typing_extensions import ParamSpec
@@ -10,13 +10,15 @@ if TYPE_CHECKING:
     _R = TypeVar("_R")
 
 import httpx
-from httpx import AsyncClient as AsyncClientType, Client as ClientType
+from httpx import AsyncClient as _XAsyncClient, Client as _XSyncClient
 
 from .limiter import RateLimiter
 
 __all__ = [
     "Client",
+    "ClientType",
     "AsyncClient",
+    "AsyncClientType",
     "delete",
     "get",
     "head",
@@ -27,6 +29,8 @@ __all__ = [
     "request",
     "stream",
 ]
+ClientType = NewType("ClientType", _XSyncClient)
+AsyncClientType = NewType("AsyncClientType", _XAsyncClient)
 _limiter = RateLimiter()
 
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import date as _date
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Dict, Mapping, NewType
 
 import httpx
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
+
+    _Shard = NewType("_Shard", Dict[str, str])
+
 API_URL = httpx.URL("https://www.nationstates.net/cgi-bin/api.cgi")
 
 __all__ = [
@@ -15,6 +18,7 @@ __all__ = [
     "Region",
     "World",
     "WA",
+    "Command",
     "Shard",
     "NationsDump",
     "RegionsDump",
@@ -22,7 +26,7 @@ __all__ = [
 ]
 
 
-def Nation(nation: str, *shards: str, **parameters: str) -> httpx.URL:
+def Nation(nation: str, *shards: str | _Shard, **parameters: str) -> httpx.URL:
     return World(*shards, nation=nation, **parameters)
 
 
@@ -30,30 +34,35 @@ def Region(region: str, *shards: str, **parameters: str) -> httpx.URL:
     return World(*shards, region=region, **parameters)
 
 
-def World(*shards: str | Mapping[str, str], **parameters: str) -> httpx.URL:
+def World(*shards: str | _Shard, **parameters: str) -> httpx.URL:
     q: list[str | None] = [parameters.pop("q", None)]
     query: dict[str, str] = {}
     for shard in shards:
-        try:
-            shard = dict(shard)  # type: ignore
-        except (TypeError, ValueError):
-            q.append(str(shard))
+        if isinstance(shard, Mapping):
+            shard = dict(shard)
+            q.append(shard.pop("q", None))
+            query.update(shard)
         else:
-            q.append(shard.pop("q", None))  # type: ignore
-            query.update(shard)  # type: ignore
+            q.append(str(shard))
     query.update(parameters, q=" ".join(map(str, filter(None, q))))
     if query.get("a", "").lower() == "sendtg":
         raise RuntimeError("sans does not currently support the telegram API.")
     return API_URL.copy_with(params=query)
 
 
-def WA(wa: Literal[1, "1", 2, "2"], *shards: str, **parameters: str) -> httpx.URL:
+def WA(
+    wa: Literal[1, "1", 2, "2"], *shards: str | _Shard, **parameters: str
+) -> httpx.URL:
     return World(*shards, wa=str(wa), **parameters)
 
 
-def Shard(q: str, **parameters: str) -> dict[str, str]:
+def Command(nation: str, c: str, **parameters: str) -> httpx.URL:
+    return World(nation=nation, c=c, **parameters)
+
+
+def Shard(q: str, **parameters: str) -> _Shard:
     parameters["q"] = q
-    return parameters
+    return parameters  # type: ignore
 
 
 # https://www.nationstates.net/archive/nations/2018-09-30-nations-xml.gz
