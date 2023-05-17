@@ -10,7 +10,6 @@ if TYPE_CHECKING:
     _R = TypeVar("_R")
 
 import httpx
-from httpx import AsyncClient as _XAsyncClient, Client as _XSyncClient
 
 from .limiter import RateLimiter
 
@@ -29,8 +28,8 @@ __all__ = [
     "request",
     "stream",
 ]
-ClientType = NewType("ClientType", _XSyncClient)
-AsyncClientType = NewType("AsyncClientType", _XAsyncClient)
+ClientType = NewType("ClientType", httpx.Client)
+AsyncClientType = NewType("AsyncClientType", httpx.AsyncClient)
 _limiter = RateLimiter()
 
 
@@ -44,8 +43,8 @@ def _ensure_auth(wrapped: Callable[_P, _R]) -> Callable[_P, _R]:
     return inner
 
 
-Client = _ensure_auth(ClientType)
-AsyncClient = _ensure_auth(AsyncClientType)
+Client = _ensure_auth(httpx.Client)
+AsyncClient = _ensure_auth(httpx.AsyncClient)
 
 request = _ensure_auth(httpx.request)
 delete = _ensure_auth(httpx.delete)
