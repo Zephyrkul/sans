@@ -15,14 +15,14 @@ try:
 
     HAS_XMLTODICT = True
 except ImportError:
-    HAS_XMLTODICT = False  # type: ignore
+    HAS_XMLTODICT = False
 
 try:
-    from lxml.etree import _Element  # type: ignore
+    from lxml.etree import _Element
 
     HAS_LXML = True
 except ImportError:
-    HAS_LXML = False  # type: ignore
+    HAS_LXML = False
 else:
     from .decoder import LXMLDecoder
 

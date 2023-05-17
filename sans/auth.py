@@ -20,6 +20,16 @@ class NSAuth(RateLimiter):
         self.autologin = autologin
 
     @property
+    def password(self) -> str | None:
+        return self._password
+
+    @password.setter
+    def password(self, value: str | None) -> None:
+        if value:
+            self._autologin = None  # likely out of date
+        self._password = value
+
+    @property
     def autologin(self) -> str | None:
         return self._autologin
 
@@ -30,8 +40,9 @@ class NSAuth(RateLimiter):
         self._autologin = value
 
     def _request_hook(self, request: Request) -> Request:
-        nation = request.url.params.get("nation")
-        if not nation:
+        params = request.url.params
+        nation = params.get("nation")
+        if not nation or not params.get("c"):
             return request
         auth = {}
         if self._password:

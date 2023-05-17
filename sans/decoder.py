@@ -77,7 +77,7 @@ class XMLChunker:
 try:
     from lxml.etree import (
         XMLParser as LXMLParser,
-        _Element as LElement,  # type: ignore
+        _Element as LElement,
     )
 except ImportError:
     pass

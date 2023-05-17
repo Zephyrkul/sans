@@ -40,15 +40,15 @@ def _ensure_auth(wrapped: Callable[_P, _R]) -> Callable[_P, _R]:
     return inner
 
 
-Client = _ensure_auth(ClientType)  # type: ignore
-AsyncClient = _ensure_auth(AsyncClientType)  # type: ignore
+Client = _ensure_auth(ClientType)
+AsyncClient = _ensure_auth(AsyncClientType)
 
-request = _ensure_auth(httpx.request)  # type: ignore
+request = _ensure_auth(httpx.request)
 delete = _ensure_auth(httpx.delete)
 get = _ensure_auth(httpx.get)
 head = _ensure_auth(httpx.head)
 options = _ensure_auth(httpx.options)
-patch = _ensure_auth(httpx.patch)  # type: ignore
-post = _ensure_auth(httpx.post)  # type: ignore
-put = _ensure_auth(httpx.put)  # type: ignore
-stream = _ensure_auth(httpx.stream)  # type: ignore
+patch = _ensure_auth(httpx.patch)
+post = _ensure_auth(httpx.post)
+put = _ensure_auth(httpx.put)
+stream = _ensure_auth(httpx.stream)

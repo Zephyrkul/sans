@@ -70,17 +70,17 @@ class ClientType(_ClientMixin, httpx.Client):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
-        auth: AuthTypes,
+        auth: RateLimiter = ...,
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> httpx.Response: ...
+    ) -> Response: ...
     @overload
     def request(
         self,
@@ -88,25 +88,16 @@ class ClientType(_ClientMixin, httpx.Client):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
-        auth: RateLimiter = ...,
+        auth: AuthTypes,
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> Response: ...
-    @overload
-    def send(
-        self,
-        request: httpx.Request,
-        *,
-        stream: bool = ...,
-        auth: AuthTypes,
-        follow_redirects: bool = ...,
     ) -> httpx.Response: ...
     @overload
     def send(
@@ -118,17 +109,13 @@ class ClientType(_ClientMixin, httpx.Client):
         follow_redirects: bool = ...,
     ) -> Response: ...
     @overload
-    def get(
+    def send(
         self,
-        url: URLTypes,
+        request: httpx.Request,
         *,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
+        stream: bool = ...,
         auth: AuthTypes,
         follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
     def get(
@@ -144,7 +131,7 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    def options(
+    def get(
         self,
         url: URLTypes,
         *,
@@ -170,7 +157,7 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    def head(
+    def options(
         self,
         url: URLTypes,
         *,
@@ -196,14 +183,10 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    def post(
+    def head(
         self,
         url: URLTypes,
         *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
@@ -218,7 +201,41 @@ class ClientType(_ClientMixin, httpx.Client):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: RateLimiter = ...,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> Response: ...
+    @overload
+    def post(
+        self,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: AuthTypes,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> httpx.Response: ...
+    @overload
+    def put(
+        self,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -235,7 +252,7 @@ class ClientType(_ClientMixin, httpx.Client):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -247,12 +264,12 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    def put(
+    def patch(
         self,
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -269,7 +286,7 @@ class ClientType(_ClientMixin, httpx.Client):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -281,14 +298,10 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    def patch(
+    def delete(
         self,
         url: URLTypes,
         *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
@@ -311,44 +324,13 @@ class ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    def delete(
-        self,
-        url: URLTypes,
-        *,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
-        auth: RateLimiter = ...,
-        follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
-    ) -> Response: ...
-    @overload
     def stream(
         self,
         method: str,
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
-        auth: AuthTypes,
-        follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
-    ) -> ContextManager[httpx.Response]: ...
-    @overload
-    def stream(
-        self,
-        method: str,
-        url: URLTypes,
-        *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -359,6 +341,24 @@ class ClientType(_ClientMixin, httpx.Client):
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
     ) -> ContextManager[Response]: ...
+    @overload
+    def stream(
+        self,
+        method: str,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: AuthTypes,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> ContextManager[httpx.Response]: ...
 
 class AsyncClientType(_ClientMixin, httpx.AsyncClient):
     @overload
@@ -368,17 +368,17 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
-        auth: AuthTypes,
+        auth: RateLimiter = ...,
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> httpx.Response: ...
+    ) -> Response: ...
     @overload
     async def request(
         self,
@@ -386,25 +386,16 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
-        auth: RateLimiter = ...,
+        auth: AuthTypes,
         follow_redirects: bool = ...,
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
-    ) -> Response: ...
-    @overload
-    async def send(
-        self,
-        request: httpx.Request,
-        *,
-        stream: bool = ...,
-        auth: AuthTypes,
-        follow_redirects: bool = ...,
     ) -> httpx.Response: ...
     @overload
     async def send(
@@ -416,17 +407,13 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         follow_redirects: bool = ...,
     ) -> Response: ...
     @overload
-    async def get(
+    async def send(
         self,
-        url: URLTypes,
+        request: httpx.Request,
         *,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
+        stream: bool = ...,
         auth: AuthTypes,
         follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
     async def get(
@@ -442,7 +429,7 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    async def options(
+    async def get(
         self,
         url: URLTypes,
         *,
@@ -468,7 +455,7 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    async def head(
+    async def options(
         self,
         url: URLTypes,
         *,
@@ -494,14 +481,10 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> Response: ...
     @overload
-    async def post(
+    async def head(
         self,
         url: URLTypes,
         *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
@@ -516,7 +499,41 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: RateLimiter = ...,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> Response: ...
+    @overload
+    async def post(
+        self,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: AuthTypes,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> httpx.Response: ...
+    @overload
+    async def put(
+        self,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -533,7 +550,7 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -545,12 +562,12 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    async def put(
+    async def patch(
         self,
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -567,7 +584,7 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -579,14 +596,10 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    async def patch(
+    async def delete(
         self,
         url: URLTypes,
         *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
         params: QueryParamTypes = ...,
         headers: HeaderTypes = ...,
         cookies: CookieTypes = ...,
@@ -609,44 +622,13 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> httpx.Response: ...
     @overload
-    async def delete(
-        self,
-        url: URLTypes,
-        *,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
-        auth: RateLimiter = ...,
-        follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
-    ) -> Response: ...
-    @overload
     def stream(
         self,
         method: str,
         url: URLTypes,
         *,
         content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
-        files: RequestFiles = ...,
-        json: Any = ...,
-        params: QueryParamTypes = ...,
-        headers: HeaderTypes = ...,
-        cookies: CookieTypes = ...,
-        auth: AuthTypes,
-        follow_redirects: bool = ...,
-        timeout: TimeoutTypes = ...,
-        extensions: dict[Any, Any] = ...,
-    ) -> AsyncContextManager[httpx.Response]: ...
-    @overload
-    def stream(
-        self,
-        method: str,
-        url: URLTypes,
-        *,
-        content: RequestContent = ...,
-        data: RequestData[Any, Any] = ...,
+        data: RequestData = ...,
         files: RequestFiles = ...,
         json: Any = ...,
         params: QueryParamTypes = ...,
@@ -657,30 +639,25 @@ class AsyncClientType(_ClientMixin, httpx.AsyncClient):
         timeout: TimeoutTypes = ...,
         extensions: dict[Any, Any] = ...,
     ) -> AsyncContextManager[Response]: ...
+    @overload
+    def stream(
+        self,
+        method: str,
+        url: URLTypes,
+        *,
+        content: RequestContent = ...,
+        data: RequestData = ...,
+        files: RequestFiles = ...,
+        json: Any = ...,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        auth: AuthTypes,
+        follow_redirects: bool = ...,
+        timeout: TimeoutTypes = ...,
+        extensions: dict[Any, Any] = ...,
+    ) -> AsyncContextManager[httpx.Response]: ...
 
-@overload
-def Client(
-    *,
-    auth: AuthTypes,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    http1: bool = ...,
-    http2: bool = ...,
-    proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, httpx.BaseTransport] = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    limits: httpx.Limits = ...,
-    max_redirects: int = ...,
-    event_hooks: Mapping[str, list[Callable[..., Any]]] = ...,
-    base_url: URLTypes = ...,
-    transport: httpx.BaseTransport = ...,
-    app: Callable[..., Any] = ...,
-    trust_env: bool = ...,
-) -> httpx.Client: ...
 @overload
 def Client(
     *,
@@ -705,7 +682,7 @@ def Client(
     trust_env: bool = ...,
 ) -> ClientType: ...
 @overload
-def AsyncClient(
+def Client(
     *,
     auth: AuthTypes,
     params: QueryParamTypes = ...,
@@ -721,12 +698,12 @@ def AsyncClient(
     follow_redirects: bool = ...,
     limits: httpx.Limits = ...,
     max_redirects: int = ...,
-    event_hooks: _EventHooksParam = ...,
+    event_hooks: Mapping[str, list[Callable[..., Any]]] = ...,
     base_url: URLTypes = ...,
     transport: httpx.BaseTransport = ...,
     app: Callable[..., Any] = ...,
     trust_env: bool = ...,
-) -> httpx.AsyncClient: ...
+) -> httpx.Client: ...
 @overload
 def AsyncClient(
     *,
@@ -751,25 +728,28 @@ def AsyncClient(
     trust_env: bool = ...,
 ) -> AsyncClientType: ...
 @overload
-def request(
-    method: str,
-    url: URLTypes,
+def AsyncClient(
     *,
+    auth: AuthTypes,
     params: QueryParamTypes = ...,
-    content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
-    files: RequestFiles = ...,
-    json: Any = ...,
     headers: HeaderTypes = ...,
     cookies: CookieTypes = ...,
-    auth: AuthTypes,
-    proxies: ProxiesTypes = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
     verify: VerifyTypes = ...,
     cert: CertTypes = ...,
+    http1: bool = ...,
+    http2: bool = ...,
+    proxies: ProxiesTypes = ...,
+    mounts: Mapping[str, httpx.BaseTransport] = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    limits: httpx.Limits = ...,
+    max_redirects: int = ...,
+    event_hooks: _EventHooksParam = ...,
+    base_url: URLTypes = ...,
+    transport: httpx.BaseTransport = ...,
+    app: Callable[..., Any] = ...,
     trust_env: bool = ...,
-) -> httpx.Response: ...
+) -> httpx.AsyncClient: ...
 @overload
 def request(
     method: str,
@@ -777,7 +757,7 @@ def request(
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -791,13 +771,13 @@ def request(
     trust_env: bool = ...,
 ) -> Response: ...
 @overload
-def stream(
+def request(
     method: str,
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -809,7 +789,7 @@ def stream(
     verify: VerifyTypes = ...,
     cert: CertTypes = ...,
     trust_env: bool = ...,
-) -> ContextManager[httpx.Response]: ...
+) -> httpx.Response: ...
 @overload
 def stream(
     method: str,
@@ -817,7 +797,7 @@ def stream(
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -831,6 +811,41 @@ def stream(
     trust_env: bool = ...,
 ) -> ContextManager[Response]: ...
 @overload
+def stream(
+    method: str,
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
+    trust_env: bool = ...,
+) -> ContextManager[httpx.Response]: ...
+@overload
+def get(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: RateLimiter = ...,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> Response: ...
+@overload
 def get(
     url: URLTypes,
     *,
@@ -846,7 +861,7 @@ def get(
     trust_env: bool = ...,
 ) -> httpx.Response: ...
 @overload
-def get(
+def options(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
@@ -876,7 +891,7 @@ def options(
     trust_env: bool = ...,
 ) -> httpx.Response: ...
 @overload
-def options(
+def head(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
@@ -906,46 +921,12 @@ def head(
     trust_env: bool = ...,
 ) -> httpx.Response: ...
 @overload
-def head(
-    url: URLTypes,
-    *,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    auth: RateLimiter = ...,
-    proxies: ProxiesTypes = ...,
-    follow_redirects: bool = ...,
-    cert: CertTypes = ...,
-    verify: VerifyTypes = ...,
-    timeout: TimeoutTypes = ...,
-    trust_env: bool = ...,
-) -> Response: ...
-@overload
 def post(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
-    files: RequestFiles = ...,
-    json: Any = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    auth: AuthTypes,
-    proxies: ProxiesTypes = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    trust_env: bool = ...,
-) -> httpx.Response: ...
-@overload
-def post(
-    url: URLTypes,
-    *,
-    params: QueryParamTypes = ...,
-    content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -959,12 +940,12 @@ def post(
     trust_env: bool = ...,
 ) -> Response: ...
 @overload
-def put(
+def post(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -983,7 +964,7 @@ def put(
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -997,12 +978,12 @@ def put(
     trust_env: bool = ...,
 ) -> Response: ...
 @overload
-def patch(
+def put(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -1021,7 +1002,7 @@ def patch(
     *,
     params: QueryParamTypes = ...,
     content: RequestContent = ...,
-    data: RequestData[Any, Any] = ...,
+    data: RequestData = ...,
     files: RequestFiles = ...,
     json: Any = ...,
     headers: HeaderTypes = ...,
@@ -1035,18 +1016,22 @@ def patch(
     trust_env: bool = ...,
 ) -> Response: ...
 @overload
-def delete(
+def patch(
     url: URLTypes,
     *,
     params: QueryParamTypes = ...,
+    content: RequestContent = ...,
+    data: RequestData = ...,
+    files: RequestFiles = ...,
+    json: Any = ...,
     headers: HeaderTypes = ...,
     cookies: CookieTypes = ...,
     auth: AuthTypes,
     proxies: ProxiesTypes = ...,
-    follow_redirects: bool = ...,
-    cert: CertTypes = ...,
-    verify: VerifyTypes = ...,
     timeout: TimeoutTypes = ...,
+    follow_redirects: bool = ...,
+    verify: VerifyTypes = ...,
+    cert: CertTypes = ...,
     trust_env: bool = ...,
 ) -> httpx.Response: ...
 @overload
@@ -1064,3 +1049,18 @@ def delete(
     timeout: TimeoutTypes = ...,
     trust_env: bool = ...,
 ) -> Response: ...
+@overload
+def delete(
+    url: URLTypes,
+    *,
+    params: QueryParamTypes = ...,
+    headers: HeaderTypes = ...,
+    cookies: CookieTypes = ...,
+    auth: AuthTypes,
+    proxies: ProxiesTypes = ...,
+    follow_redirects: bool = ...,
+    cert: CertTypes = ...,
+    verify: VerifyTypes = ...,
+    timeout: TimeoutTypes = ...,
+    trust_env: bool = ...,
+) -> httpx.Response: ...

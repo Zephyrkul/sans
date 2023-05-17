@@ -11,7 +11,7 @@ from typing import AsyncGenerator, Generator, Iterator
 import anyio
 import httpx
 
-from . import _state  # type: ignore
+from . import _state
 from .errors import AgentNotSetError
 from .response import Response
 from .url import API_URL
