@@ -33,7 +33,7 @@ from .url import *
 from .utils import *
 
 if _sys.version_info < (3, 8):
-    from importlib_metadata import metadata as _metadata  # type: ignore
+    from importlib_metadata import metadata as _metadata
 else:
     from importlib.metadata import metadata as _metadata
 
