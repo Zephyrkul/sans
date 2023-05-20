@@ -39,7 +39,7 @@ Synchronous
          mode="score",
          scale="65 66",
       )
-      root = sans.get(request)
+      root = sans.get(request).xml
       sans.indent(root)
       print(ET.tostring(root, encoding="unicode"))
 
