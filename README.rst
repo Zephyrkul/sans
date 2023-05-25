@@ -5,7 +5,7 @@ sans
 
 **S**\ ynchronous / **A**\ synchronous **N**\ ation\ **S**\ tates
 
-An extension for `HTTPX <https://www.python-httpx.org/>`_ for the `NationStates API <https://www.nationstates.net/pages/api.html>`_
+A `fully typed <https://docs.python.org/3/library/typing.html>`_ extension for `HTTPX <https://www.python-httpx.org/>`_ for the `NationStates API <https://www.nationstates.net/pages/api.html>`_.
 
 Installing
 ----------
