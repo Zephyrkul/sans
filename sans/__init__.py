@@ -20,9 +20,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys as _sys
+from __future__ import annotations
 
-from ._state import set_agent as set_agent
+import sys as _sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing_extensions import Literal
+
+from . import _state
 from .auth import *
 from .client import *
 from .errors import *
@@ -45,4 +51,37 @@ __author__ = _meta["Author"]
 __license__ = _meta["License"]
 __version__ = _meta["Version"]
 
-del _sys, _metadata, _meta  # not for export
+
+del annotations, _sys, TYPE_CHECKING, _metadata, _meta  # not for export
+
+
+def set_agent(new_agent: str, *, _force: Literal[False] = False) -> str:
+    """
+    Sets sans' User-Agent header.
+
+    Parameters
+    ----------
+    agent: str
+        The User-Agent header to use.
+        Your nation name and a method of contact, like an email address, are recommended.
+        Some script info will be appended automatically.
+    _force: bool
+        Forcibly override the User-Agent header even after it's already been set.
+        Not recommended: https://www.nationstates.net/pages/api.html#terms
+
+    Returns
+    -------
+    The actual newly set agent, including attached additional script information.
+    """
+
+    if _state.agent and not _force:
+        raise RuntimeError("Agent cannot be re-set")
+    import sys
+
+    import httpx
+
+    _state.agent = (
+        f"{new_agent} Python/{sys.version_info[0]}.{sys.version_info[1]} "
+        f"httpx/{httpx.__version__} sans/{__version__}"
+    )
+    return _state.agent
