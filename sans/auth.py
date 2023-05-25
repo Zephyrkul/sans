@@ -3,6 +3,7 @@ from __future__ import annotations
 from httpx import Request, Response
 
 from .limiter import RateLimiter
+from .url import API_URL
 
 try:
     # guard against reloading
@@ -42,21 +43,24 @@ class NSAuth(RateLimiter):
     def _request_hook(self, request: Request) -> Request:
         params = request.url.params
         nation = params.get("nation")
-        if not nation or not params.get("c"):
+        if not nation:
             return request
-        auth = {}
-        if self._password:
-            auth["X-Password"] = self._password
-        elif self._autologin:
-            auth["X-Autologin"] = self._autologin
-        pin = _PINS.get(nation)
-        if pin:
-            auth["X-Pin"] = pin
-        request.method = "POST"
+        headers = request.headers
+        if self._autologin:
+            headers["X-Autologin"] = self._autologin
+            pin = _PINS.get(self._autologin)
+            if pin:
+                headers["X-Pin"] = pin
+        elif self._password:
+            headers["X-Password"] = self._password
+        request = Request("POST", API_URL, headers=headers, data=params)
         return super()._request_hook(request)
 
     def _response_hook(self, response: Response) -> None:
         autologin = response.headers.get("X-Autologin")
         if autologin:
             self.autologin = autologin
+            pin = response.headers.get("X-Pin")
+            if pin:
+                _PINS[autologin] = pin
         return super()._response_hook(response)
