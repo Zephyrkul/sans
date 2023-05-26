@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import overload
+
 from httpx import Request, Response
 
 from .limiter import RateLimiter
@@ -16,7 +18,17 @@ __all__ = ["NSAuth"]
 
 
 class NSAuth(RateLimiter):
-    def __init__(self, *, password: str | None = None, autologin: str | None = None):
+    @overload
+    def __init__(self, *, password: str) -> None:
+        ...
+
+    @overload
+    def __init__(self, *, autologin: str) -> None:
+        ...
+
+    def __init__(
+        self, *, password: str | None = None, autologin: str | None = None
+    ) -> None:
         self._password = password
         self.autologin = autologin
 
