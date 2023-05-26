@@ -10,7 +10,7 @@
 [project]
     name = 'sans'
     description = 'Synchronous / Asynchronous HTTPX extension for NationStates'
-    readme = 'README.rst'
+    readme = 'README.md'
     requires-python = '>=3.7.0,<4.0'
     classifiers = [
         'Development Status :: 5 - Production/Stable',
