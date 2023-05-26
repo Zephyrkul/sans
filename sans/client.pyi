@@ -7,7 +7,6 @@ from typing import (
     Collection,
     ContextManager,
     Mapping,
-    NewType,
     overload,
 )
 from typing_extensions import TypedDict
@@ -65,7 +64,29 @@ class _ClientMixin:
     @event_hooks.setter
     def event_hooks(self, value: _EventHooksParam) -> None: ...
 
-class _ClientType(_ClientMixin, httpx.Client):
+class Client(_ClientMixin, httpx.Client):
+    def __init__(
+        self,
+        *,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        verify: VerifyTypes = ...,
+        cert: CertTypes = ...,
+        http1: bool = ...,
+        http2: bool = ...,
+        proxies: ProxiesTypes = ...,
+        mounts: Mapping[str, httpx.BaseTransport] = ...,
+        timeout: TimeoutTypes = ...,
+        follow_redirects: bool = ...,
+        limits: httpx.Limits = ...,
+        max_redirects: int = ...,
+        event_hooks: _EventHooksParam = ...,
+        base_url: URLTypes = ...,
+        transport: httpx.BaseTransport = ...,
+        app: Callable[..., Any] = ...,
+        trust_env: bool = ...,
+    ) -> None: ...
     @overload
     def request(
         self,
@@ -363,7 +384,29 @@ class _ClientType(_ClientMixin, httpx.Client):
         extensions: dict[Any, Any] = ...,
     ) -> ContextManager[httpx.Response]: ...
 
-class _AsyncClientType(_ClientMixin, httpx.AsyncClient):
+class AsyncClient(_ClientMixin, httpx.AsyncClient):
+    def __init__(
+        self,
+        *,
+        params: QueryParamTypes = ...,
+        headers: HeaderTypes = ...,
+        cookies: CookieTypes = ...,
+        verify: VerifyTypes = ...,
+        cert: CertTypes = ...,
+        http1: bool = ...,
+        http2: bool = ...,
+        proxies: ProxiesTypes = ...,
+        mounts: Mapping[str, httpx.BaseTransport] = ...,
+        timeout: TimeoutTypes = ...,
+        follow_redirects: bool = ...,
+        limits: httpx.Limits = ...,
+        max_redirects: int = ...,
+        event_hooks: Mapping[str, Collection[Callable[..., Any]]] = ...,
+        base_url: URLTypes = ...,
+        transport: httpx.BaseTransport = ...,
+        app: Callable[..., Any] = ...,
+        trust_env: bool = ...,
+    ) -> None: ...
     @overload
     async def request(
         self,
@@ -661,101 +704,9 @@ class _AsyncClientType(_ClientMixin, httpx.AsyncClient):
         extensions: dict[Any, Any] = ...,
     ) -> AsyncContextManager[httpx.Response]: ...
 
-ClientType = NewType("ClientType", _ClientType)
-AsyncClientType = NewType("AsyncClientType", _AsyncClientType)
+ClientType = Client
+AsyncClientType = AsyncClient
 
-@overload
-def Client(
-    *,
-    auth: RateLimiter = ...,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    http1: bool = ...,
-    http2: bool = ...,
-    proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, httpx.BaseTransport] = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    limits: httpx.Limits = ...,
-    max_redirects: int = ...,
-    event_hooks: _EventHooksParam = ...,
-    base_url: URLTypes = ...,
-    transport: httpx.BaseTransport = ...,
-    app: Callable[..., Any] = ...,
-    trust_env: bool = ...,
-) -> ClientType: ...
-@overload
-def Client(
-    *,
-    auth: AuthTypes | None,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    http1: bool = ...,
-    http2: bool = ...,
-    proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, httpx.BaseTransport] = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    limits: httpx.Limits = ...,
-    max_redirects: int = ...,
-    event_hooks: Mapping[str, list[Callable[..., Any]]] = ...,
-    base_url: URLTypes = ...,
-    transport: httpx.BaseTransport = ...,
-    app: Callable[..., Any] = ...,
-    trust_env: bool = ...,
-) -> httpx.Client: ...
-@overload
-def AsyncClient(
-    *,
-    auth: RateLimiter = ...,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    http1: bool = ...,
-    http2: bool = ...,
-    proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, httpx.BaseTransport] = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    limits: httpx.Limits = ...,
-    max_redirects: int = ...,
-    event_hooks: Mapping[str, Collection[Callable[..., Any]]] = ...,
-    base_url: URLTypes = ...,
-    transport: httpx.BaseTransport = ...,
-    app: Callable[..., Any] = ...,
-    trust_env: bool = ...,
-) -> AsyncClientType: ...
-@overload
-def AsyncClient(
-    *,
-    auth: AuthTypes | None,
-    params: QueryParamTypes = ...,
-    headers: HeaderTypes = ...,
-    cookies: CookieTypes = ...,
-    verify: VerifyTypes = ...,
-    cert: CertTypes = ...,
-    http1: bool = ...,
-    http2: bool = ...,
-    proxies: ProxiesTypes = ...,
-    mounts: Mapping[str, httpx.BaseTransport] = ...,
-    timeout: TimeoutTypes = ...,
-    follow_redirects: bool = ...,
-    limits: httpx.Limits = ...,
-    max_redirects: int = ...,
-    event_hooks: _EventHooksParam = ...,
-    base_url: URLTypes = ...,
-    transport: httpx.BaseTransport = ...,
-    app: Callable[..., Any] = ...,
-    trust_env: bool = ...,
-) -> httpx.AsyncClient: ...
 @overload
 def request(
     method: str,
