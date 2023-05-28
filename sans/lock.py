@@ -2,20 +2,68 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from collections import deque
 from contextvars import Context, copy_context
 from functools import partial
 from operator import add
-from time import monotonic
-from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Mapping,
+    TypeVar,
+)
+
+import anyio
+import sniffio
+from anyio.lowlevel import (
+    cancel_shielded_checkpoint,
+    checkpoint_if_cancelled,
+)
 
 if TYPE_CHECKING:
-    from typing_extensions import Literal
+    from typing_extensions import TypeVarTuple, Unpack
+
+    _KT = TypeVar("_KT")
+    _Ts = TypeVarTuple("_Ts")
 
 __all__ = ["ResetLock"]
 
 
-_KT = TypeVar("_KT")
+def _asyncio_sleep_forever(callback_deque: deque[Callable[[], Any]]) -> Awaitable[None]:
+    future = asyncio.get_running_loop().create_future()
+    callback = partial(future.get_loop().call_soon_threadsafe, future.set_result, None)
+    callback_deque.append(callback)
+    return future
+
+
+try:
+    import trio
+except ImportError:
+    pass
+else:
+
+    @trio.lowlevel.enable_ki_protection
+    def _trio_sleep_forever(
+        callback_deque: deque[Callable[[], Any]]
+    ) -> Awaitable[None]:
+        task = trio.lowlevel.current_task()
+        callback = partial(
+            trio.lowlevel.current_trio_token().run_sync_soon,
+            trio.lowlevel.reschedule,
+            task,
+        )
+        callback_deque.append(callback)
+
+        def abort_func(
+            _, callback=callback, callback_deque_remove=callback_deque.remove
+        ):
+            callback_deque_remove(callback)
+            return trio.lowlevel.Abort.SUCCEEDED
+
+        return trio.lowlevel.wait_task_rescheduled(abort_func)
 
 
 def _get_as_int(mapping: Mapping[_KT, Any], key: _KT, default: int) -> int:
@@ -25,14 +73,25 @@ def _get_as_int(mapping: Mapping[_KT, Any], key: _KT, default: int) -> int:
         return default
 
 
-class _Timer(threading.Timer):
+class _ThreadTimer(threading.Timer):
+    def __init__(
+        self,
+        delay: float,
+        callback: Callable[[Unpack[_Ts]], Any],
+        *args: Unpack[_Ts],
+        context: Context | None = None,
+    ) -> None:
+        if not context:
+            context = copy_context()
+        super().__init__(delay, context.run, (callback, *args))
+
     def when(self) -> float:
         # when the timer completes if started at this very moment
-        return monotonic() + self.interval
+        return time.monotonic() + self.interval
 
     def run(self) -> None:
         # freeze .when() at the current time
-        self.when = partial(add, monotonic(), self.interval)
+        self.when = partial(add, time.monotonic(), self.interval)
         return super().run()
 
 
@@ -56,43 +115,29 @@ class ResetLock:
     """
 
     def __init__(self):
-        self.__deferred: asyncio.TimerHandle | _Timer | None = None
+        self.__deferred: _ThreadTimer | None = None
         self._lock = threading.Lock()
-        self._waiters: deque[asyncio.Future[Literal[True]]] = deque()
+        self._waiters: deque[Callable[[], Any]] = deque()
 
     def _wake_up_next(self):
         try:
-            next_fut = next(iter(self._waiters))
-        except StopIteration:
+            callback = self._waiters.popleft()
+        except IndexError:
             return
-        if next_fut.done():
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        next_loop = next_fut.get_loop()
-        if next_loop == loop:
-            next_fut.set_result(True)
         else:
-            next_loop.call_soon_threadsafe(next_fut.set_result, True)
+            callback()
 
     async def __aenter__(self) -> None:
         acquire = self._lock.acquire
-        future_factory = asyncio.get_running_loop().create_future
-        waiters_append = self._waiters.append
-        waiters_remove = self._waiters.remove
+        sleep_forever = globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        await checkpoint_if_cancelled()
         while not acquire(False):
-            fut = future_factory()
-            waiters_append(fut)
             try:
-                try:
-                    await fut
-                finally:
-                    waiters_remove(fut)
-            except asyncio.CancelledError:
+                await sleep_forever(self._waiters)
+            except anyio.get_cancelled_exc_class():
                 self._wake_up_next()
                 raise
+        await cancel_shielded_checkpoint()
 
     async def __aexit__(self, *_):
         self.release()
@@ -115,11 +160,12 @@ class ResetLock:
 
     # write-only property
     @partial(property, None)
-    def _deferred(self, value: asyncio.TimerHandle | _Timer | None):
+    def _deferred(self, value: _ThreadTimer):
         assert self.locked()
         if self.__deferred:
             self.__deferred.cancel()
         self.__deferred = value
+        value.start()
 
     @_deferred.deleter
     def _deferred(self) -> None:
@@ -131,31 +177,16 @@ class ResetLock:
     def maybe_defer(self, response_headers: Mapping[str, str]) -> None:
         if not self.locked():
             return
-        try:
-            call_later = asyncio.get_running_loop().call_later  # type: ignore
-        except RuntimeError:
-
-            def call_later(
-                delay: float,
-                callback: Callable[..., Any],
-                *args: Any,
-                context: Context | None = None,
-            ) -> _Timer | asyncio.TimerHandle:
-                if not context:
-                    context = copy_context()
-                timer = _Timer(delay, context.run, (callback, *args))
-                timer.start()
-                return timer
 
         xra = _get_as_int(response_headers, "Retry-After", 0)
         if xra:
-            self._deferred = call_later(xra, self._release)
+            self._deferred = _ThreadTimer(xra, self._release)
             return
         xrlr = _get_as_int(response_headers, "RateLimit-Remaining", 1)
         if xrlr:
             return
         xrlr = _get_as_int(response_headers, "RateLimit-Reset", 0)
-        self._deferred = call_later(xrlr, self._release)
+        self._deferred = _ThreadTimer(xrlr, self._release)
 
     def locked(self):
         return self._lock.locked()
@@ -170,3 +201,41 @@ class ResetLock:
         del self._deferred
         self._wake_up_next()
         self._lock.release()
+
+
+if __name__ == "__main__":
+    from itertools import repeat, starmap
+    from operator import methodcaller
+
+    from anyio.lowlevel import checkpoint
+
+    async def main():
+        lock = ResetLock()
+
+        def target(lock=lock):
+            print("before threading lock")
+            with lock:
+                print("during threading lock")
+                lock.maybe_defer({"Retry-After": "1"})
+            print("after threading lock")
+
+        async def async_target(lock=lock):
+            lib = sniffio.current_async_library()
+            print(f"before {lib} lock")
+            async with lock:
+                print(f"during {lib} lock")
+                lock.maybe_defer({"Retry-After": "1"})
+                await checkpoint()
+            print(f"after {lib} lock")
+
+        consume = deque(maxlen=0).extend
+
+        threads = [threading.Thread(target=target, daemon=True) for _ in range(5)]
+        consume(map(methodcaller("start"), threads))  # start them all
+
+        async with anyio.create_task_group() as group:
+            # start them all
+            consume(starmap(group.start_soon, repeat((async_target,), 5)))
+
+    anyio.run(main, backend="asyncio")
+    anyio.run(main, backend="trio")
