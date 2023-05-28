@@ -10,7 +10,7 @@ repos:
     -   id: check-toml
     -   id: check-added-large-files
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.269
+    rev: v0.0.270
     hooks:
     -   id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
@@ -19,7 +19,7 @@ repos:
     hooks:
     -   id: black
 -   repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.309
+    rev: v1.1.310
     hooks:
     -   id: pyright
         additional_dependencies:
@@ -37,6 +37,7 @@ repos:
             # typing
         -   typing_extensions
         -   lxml-stubs @ https://github.com/lxml/lxml-stubs/archive/master.zip#egg=lxml-stubs
+        -   anyio[trio]
 ci:
     skip:
     # CI doesn't like pip scripts calling their own node, so skip this for now
