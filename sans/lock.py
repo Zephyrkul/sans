@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+import weakref
 from collections import deque
 from contextvars import Context, copy_context
 from functools import partial
@@ -32,11 +33,24 @@ if TYPE_CHECKING:
 __all__ = ["ResetLock"]
 
 
-def _asyncio_sleep_forever(callback_deque: deque[Callable[[], Any]]) -> Awaitable[None]:
+def _threading_sleep_forever(callback_deque: deque[Callable[[], Any]]):
+    lock = threading.Lock()
+    with lock:
+        callback_deque.append(lock.release)
+        try:
+            lock.acquire()
+        finally:
+            callback_deque.remove(lock.release)
+
+
+async def _asyncio_sleep_forever(callback_deque: deque[Callable[[], Any]]) -> None:
     future = asyncio.get_running_loop().create_future()
-    callback = partial(future.get_loop().call_soon_threadsafe, future.set_result, None)
-    callback_deque.append(callback)
-    return future
+    release = partial(future.get_loop().call_soon_threadsafe, future.set_result, None)
+    callback_deque.append(release)
+    try:
+        await future
+    finally:
+        callback_deque.remove(release)
 
 
 try:
@@ -46,24 +60,23 @@ except ImportError:
 else:
 
     @trio.lowlevel.enable_ki_protection
-    def _trio_sleep_forever(
+    async def _trio_sleep_forever(
         callback_deque: deque[Callable[[], Any]]
     ) -> Awaitable[None]:
         task = trio.lowlevel.current_task()
-        callback = partial(
+        release = partial(
             trio.lowlevel.current_trio_token().run_sync_soon,
             trio.lowlevel.reschedule,
             task,
         )
-        callback_deque.append(callback)
+        callback_deque.append(release)
 
-        def abort_func(
-            _, callback=callback, callback_deque_remove=callback_deque.remove
-        ):
-            callback_deque_remove(callback)
-            return trio.lowlevel.Abort.SUCCEEDED
-
-        return trio.lowlevel.wait_task_rescheduled(abort_func)
+        try:
+            return await trio.lowlevel.wait_task_rescheduled(
+                lambda _: trio.lowlevel.Abort.SUCCEEDED
+            )
+        finally:
+            callback_deque.remove(release)
 
 
 def _get_as_int(mapping: Mapping[_KT, Any], key: _KT, default: int) -> int:
@@ -101,7 +114,7 @@ class _ThreadTimer(threading.Timer):
 class ResetLock:
     """
     Combination :class:`asyncio.Lock` and :class:`threading.Lock`
-    for ratelimiting purposes.
+    for ratelimiting purposes. Works based on a FIFO queue.
 
     Usage::
 
@@ -114,65 +127,84 @@ class ResetLock:
     using :class:`RateLimiter` will manage a global lock for you.
     """
 
+    __deferred: _ThreadTimer | None = None
+
+    def __finalizer(self) -> None:
+        pass
+
     def __init__(self):
-        self.__deferred: _ThreadTimer | None = None
         self._lock = threading.Lock()
         self._waiters: deque[Callable[[], Any]] = deque()
 
     def _wake_up_next(self):
         try:
-            callback = self._waiters.popleft()
-        except IndexError:
+            release = next(iter(self._waiters))
+        except StopIteration:
             return
         else:
-            callback()
+            release()
 
     async def __aenter__(self) -> None:
         acquire = self._lock.acquire
-        sleep_forever = globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        waiters = self._waiters
+        sleep_forever: Callable[
+            [deque[Callable[[], Any]]], Awaitable[None]
+        ] = globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
         await checkpoint_if_cancelled()
-        while not acquire(False):
-            try:
-                await sleep_forever(self._waiters)
-            except anyio.get_cancelled_exc_class():
+        if not waiters:
+            if acquire(False):
+                await cancel_shielded_checkpoint()
+                return
+        try:
+            await sleep_forever(waiters)
+        except anyio.get_cancelled_exc_class():
+            if not self._lock.locked():
                 self._wake_up_next()
-                raise
-        await cancel_shielded_checkpoint()
+            raise
+        else:
+            # We were just rescheduled, so the lock is about to be released
+            acquire()
 
     async def __aexit__(self, *_):
         self.release()
 
     def __enter__(self) -> bool:
-        return self._lock.acquire()
+        acquire = self._lock.acquire
+        waiters = self._waiters
+        if not waiters:
+            if acquire(False):
+                return True
+        _threading_sleep_forever(waiters)
+        return acquire()
 
     def __exit__(self, *_):
         self.release()
 
     @property
-    def deferred(self) -> float | None:
+    def deferred(self) -> float:
         """
         Returns when the lock is scheduled to be released according to internal monotonic clocks,
-        or None if the lock isn't deferred.
+        or 0 if the lock isn't deferred.
         """
         if self.__deferred:
             return self.__deferred.when()
-        # return None
+        return 0.0
 
-    # write-only property
-    @partial(property, None)
+    _deferred = property(deferred.fget)
+
+    @_deferred.setter
     def _deferred(self, value: _ThreadTimer):
         assert self.locked()
-        if self.__deferred:
-            self.__deferred.cancel()
+        self.__finalizer()
         self.__deferred = value
+        self.__finalizer = weakref.finalize(self, value.cancel)
         value.start()
 
     @_deferred.deleter
     def _deferred(self) -> None:
         assert self.locked()
-        if self.__deferred:
-            self.__deferred.cancel()
-        self.__deferred = None
+        self.__finalizer()
+        del self.__deferred
 
     def maybe_defer(self, response_headers: Mapping[str, str]) -> None:
         if not self.locked():
@@ -204,9 +236,6 @@ class ResetLock:
 
 
 if __name__ == "__main__":
-    from itertools import repeat, starmap
-    from operator import methodcaller
-
     from anyio.lowlevel import checkpoint
 
     async def main():
@@ -228,14 +257,11 @@ if __name__ == "__main__":
                 await checkpoint()
             print(f"after {lib} lock")
 
-        consume = deque(maxlen=0).extend
-
-        threads = [threading.Thread(target=target, daemon=True) for _ in range(5)]
-        consume(map(methodcaller("start"), threads))  # start them all
-
         async with anyio.create_task_group() as group:
-            # start them all
-            consume(starmap(group.start_soon, repeat((async_target,), 5)))
+            for _ in range(5):
+                group.start_soon(async_target)
+                threading.Thread(target=target, daemon=True).start()
+                await checkpoint()
 
     anyio.run(main, backend="asyncio")
     anyio.run(main, backend="trio")
