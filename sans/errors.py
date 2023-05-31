@@ -51,7 +51,7 @@ def narrow(original: HTTPStatusError) -> HTTPStatusError:
     _new = best.__new__(best)
     _new.__dict__.update(original.__dict__)
     _new.args = original.args
-    return _new.with_traceback(original.__traceback__)
+    return _new
 
 
 class ClientError(_HTTPStatusError):

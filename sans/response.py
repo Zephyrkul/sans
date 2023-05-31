@@ -105,4 +105,4 @@ class Response(httpx.Response):
         try:
             return super().raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise narrow(exc) from None
+            raise narrow(exc).with_traceback(exc.__traceback__) from None
