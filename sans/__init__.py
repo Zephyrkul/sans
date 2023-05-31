@@ -76,12 +76,15 @@ def set_agent(new_agent: str, *, _force: Literal[False] = False) -> str:
 
     if _state.agent and not _force:
         raise RuntimeError("Agent cannot be re-set")
-    import sys
+    if not new_agent:
+        _state.agent = ""
+    else:
+        import sys
 
-    import httpx
+        import httpx
 
-    _state.agent = (
-        f"{new_agent} Python/{sys.version_info[0]}.{sys.version_info[1]} "
-        f"httpx/{httpx.__version__} sans/{__version__}"
-    )
+        _state.agent = (
+            f"{new_agent} Python/{sys.version_info[0]}.{sys.version_info[1]} "
+            f"httpx/{httpx.__version__} sans/{__version__}"
+        )
     return _state.agent
