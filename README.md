@@ -1,6 +1,6 @@
 # sans
 
-[![pypi](https://img.shields.io/pypi/v/sans.svg)](https://pypi.org/project/sans/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black) [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Zephyrkul/sans/master.svg)](https://results.pre-commit.ci/latest/github/Zephyrkul/sans/master) [![Documentation Status](https://readthedocs.org/projects/sans/badge/?version=latest)](http://sans.readthedocs.org/en/latest/?badge=latest)
+[![pypi](https://img.shields.io/pypi/v/sans.svg)](https://pypi.org/project/sans/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Zephyrkul/sans/master.svg)](https://results.pre-commit.ci/latest/github/Zephyrkul/sans/master) [![Documentation Status](https://readthedocs.org/projects/sans/badge/?version=latest)](http://sans.readthedocs.org/en/latest/?badge=latest)
 
 **S**ynchronous / **A**synchronous **N**ation**S**tates
 
@@ -105,5 +105,5 @@ No query provided. Exiting...
 
 ## Requirements
 
--  [Python 3.7+](https://www.python.org/)
--  [httpx](https://pypi.org/project/httpx/)
+- [Python 3.7+](https://www.python.org/)
+- [httpx](https://pypi.org/project/httpx/)
