@@ -85,21 +85,27 @@ if __name__ == "__main__":
 
 ```xml
 sans --nation darcania census --scale "65 66" --mode score --agent Darcania
-<CENSUS>
-   <SCALE id="65">
-      <SCORE>4949.00</SCORE>
-   </SCALE>
-   <SCALE id="66">
-      <SCORE>130.00</SCORE>
-   </SCALE>
-</CENSUS>
+<NATION id="darcania">
+  <CENSUS>
+    <SCALE id="65">
+      <SCORE>8145.00</SCORE>
+    </SCALE>
+    <SCALE id="66">
+      <SCORE>0.00</SCORE>
+    </SCALE>
+  </CENSUS>
+</NATION>
 
 sans --nation testlandia fullname
-<FULLNAME>The Hive Mind of Testlandia</FULLNAME>
+<NATION id="testlandia">
+  <FULLNAME>The Hive Mind of Testlandia</FULLNAME>
+</NATION>
 
 sans --region "the north pacific" numnations lastupdate
-<LASTUPDATE>1683650325</LASTUPDATE>
-<NUMNATIONS>10503</NUMNATIONS>
+<REGION id="the_north_pacific">
+  <LASTUPDATE>1685681810</LASTUPDATE>
+  <NUMNATIONS>9535</NUMNATIONS>
+</REGION>
 
 sans --quit
 No query provided. Exiting...
