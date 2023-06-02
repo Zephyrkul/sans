@@ -83,9 +83,8 @@ if __name__ == "__main__":
 
 ## Command Line
 
-```sh
+```xml
 sans --nation darcania census --scale "65 66" --mode score --agent Darcania
-
 <CENSUS>
    <SCALE id="65">
       <SCORE>4949.00</SCORE>
@@ -96,11 +95,9 @@ sans --nation darcania census --scale "65 66" --mode score --agent Darcania
 </CENSUS>
 
 sans --nation testlandia fullname
-
 <FULLNAME>The Hive Mind of Testlandia</FULLNAME>
 
 sans --region "the north pacific" numnations lastupdate
-
 <LASTUPDATE>1683650325</LASTUPDATE>
 <NUMNATIONS>10503</NUMNATIONS>
 
