@@ -3,23 +3,37 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import shlex
 import sys
-import traceback
 from contextlib import redirect_stdout
-from typing import TYPE_CHECKING, Any, NoReturn as Never
+from operator import methodcaller
+from typing import TYPE_CHECKING, Any, Callable, NoReturn as Never
 from xml.etree import ElementTree as ET
 
 import sans
 
 try:
-    if not TYPE_CHECKING:
-        from rich import print  # type: ignore
-        from rich.syntax import Syntax  # type: ignore
+    import readline  # noqa: F401
 except ImportError:
+    pass
 
-    def Syntax(arg: Any, *_args: Any, **_kwargs: Any) -> Any:
+
+if TYPE_CHECKING:
+
+    def Syntax(arg: str, *_args: Any, **_kwargs: Any) -> object:
         return arg
+
+else:
+    try:
+        from rich import print
+        from rich.syntax import Syntax
+        from rich.traceback import install
+    except ImportError:
+        pass
+    else:
+        install()
+        del install
 
 
 class _ReInput:
@@ -34,7 +48,7 @@ class _ReInput:
         exc: BaseException | None = exc_details[1]
         if exc is None or isinstance(exc, Exception):
             if exc is not None:
-                traceback.print_exc(file=sys.stderr)
+                sys.excepthook(type(exc), exc, exc.__traceback__)
             try:
                 with redirect_stdout(sys.stderr):
                     self.input = shlex.split(input(f"\n>>> {sans.__name__} "))
@@ -51,7 +65,7 @@ def main() -> Never:
         prog=sans.__name__,
         epilog="Any unknown args will be used to build the API request.",
     )
-    parser.add_argument("--agent", help="set the script's user agent")
+    parser.add_argument("--agent", "-A", help="set the script's user agent")
     parser.add_argument(
         "--quit",
         "--exit",
@@ -69,6 +83,9 @@ def main() -> Never:
     parser.add_argument("--version", action="version", version=sans.__version__)
     reinput = _ReInput(parser)
     agent: str = ""
+    decoder: Callable[[bytes], str] = methodcaller(
+        "decode", encoding=sys.stderr.encoding, errors="replace"
+    )
     with sans.Client() as client:
         while True:
             with reinput as (known, unknown):
@@ -86,7 +103,8 @@ def main() -> Never:
                         print("No query provided. Exiting...", file=sys.stderr)
                         sys.exit(0)
                     print("No query provided.", file=sys.stderr)
-                    parser.print_help(sys.stderr)
+                    if not any(vars(known).values()):
+                        parser.print_help(sys.stderr)
                     continue
                 parameters: dict[str, list[str]] = {}
                 key = "q"
@@ -110,11 +128,14 @@ def main() -> Never:
                 )
                 if known.verbose:
                     print(
-                        f"> {request.method} {request.url.path}?{request.url.params} HTTP/1.1",
+                        f"> {request.method} {decoder(request.url.raw_path)} HTTP/1.1",
                         file=sys.stderr,
                     )
-                    for key, value in request.headers.multi_items():
-                        print(f"> {key.title()}: {value}", file=sys.stderr)
+                    for key, value in request.headers.raw:
+                        print(
+                            f"> {decoder(key).title()}: {decoder(value)}",
+                            file=sys.stderr,
+                        )
                     print(">", file=sys.stderr)
                 response = client.send(request)
                 if known.verbose:
@@ -122,8 +143,11 @@ def main() -> Never:
                         f"< HTTP/1.1 {response.status_code} {response.reason_phrase}",
                         file=sys.stderr,
                     )
-                    for key, value in response.headers.multi_items():
-                        print(f"< {key.title()}: {value}", file=sys.stderr)
+                    for key, value in response.headers.raw:
+                        print(
+                            f"< {decoder(key).title()}: {decoder(value)}",
+                            file=sys.stderr,
+                        )
                     print("<", file=sys.stderr)
                 if response.content_type == "text/xml":
                     pretty_print(response.xml)
@@ -142,4 +166,5 @@ def pretty_print(element: ET.Element) -> None:
 
 
 if __name__ == "__main__":
+    logging.captureWarnings(True)
     sys.exit(main())
