@@ -6,7 +6,8 @@ import argparse
 import shlex
 import sys
 import traceback
-from typing import TYPE_CHECKING, Any
+from contextlib import redirect_stdout
+from typing import TYPE_CHECKING, Any, NoReturn as Never
 from xml.etree import ElementTree as ET
 
 import sans
@@ -21,7 +22,29 @@ except ImportError:
         return arg
 
 
-def main() -> None:
+class _ReInput:
+    def __init__(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+        self.input: list[str] | None = None
+
+    def __enter__(self):
+        return self.parser.parse_known_args(self.input)
+
+    def __exit__(self, *exc_details):
+        exc: BaseException | None = exc_details[1]
+        if exc is None or isinstance(exc, Exception):
+            if exc is not None:
+                traceback.print_exc(file=sys.stderr)
+            try:
+                with redirect_stdout(sys.stderr):
+                    self.input = shlex.split(input(f"\n>>> {sans.__name__} "))
+            except EOFError:
+                sys.exit(0)
+            return True
+        return False
+
+
+def main() -> Never:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="SANS Console Entry",
@@ -30,28 +53,29 @@ def main() -> None:
     )
     parser.add_argument("--agent", help="set the script's user agent")
     parser.add_argument(
-        "--headers",
-        action="store_true",
-        help="print the headers of the server response",
-    )
-    parser.add_argument(
         "--quit",
+        "--exit",
         action="store_true",
         help="quit the console program loop after this run",
     )
     parser.add_argument(
-        "--url", action="store_true", help="print the URL of the generated request"
+        "--verbose",
+        "-v",
+        "--url",
+        "--headers",
+        action="store_true",
+        help="prints extra info about the request and response",
     )
     parser.add_argument("--version", action="version", version=sans.__version__)
-    input_: list[str] | None = None
+    reinput = _ReInput(parser)
+    agent: str = ""
     with sans.Client() as client:
         while True:
-            print(file=sys.stderr)
-            known, unknown = parser.parse_known_args(input_)
-            try:
+            with reinput as (known, unknown):
                 if known.agent:
                     try:
-                        sans.set_agent(known.agent)
+                        agent = sans.set_agent(known.agent)
+                        print(f"Agent set: {agent}", file=sys.stderr)
                     except RuntimeError:
                         print(
                             "You can't change the agent in the middle of the script.",
@@ -60,7 +84,7 @@ def main() -> None:
                 if not unknown:
                     if known.quit:
                         print("No query provided. Exiting...", file=sys.stderr)
-                        return
+                        sys.exit(0)
                     print("No query provided.", file=sys.stderr)
                     parser.print_help(sys.stderr)
                     continue
@@ -70,7 +94,7 @@ def main() -> None:
                     if arg.startswith("--"):
                         if key != "q":
                             print(
-                                "No value provided for key {!r}".format(key),
+                                f"No value provided for key {key!r}",
                                 file=sys.stderr,
                             )
                         key = arg[2:]
@@ -78,28 +102,38 @@ def main() -> None:
                         parameters.setdefault(key, []).append(arg)
                         key = "q"
                 if key != "q":
-                    print("No value provided for key {!r}".format(key), file=sys.stderr)
-                with client.stream(
+                    print(f"No value provided for key {key!r}", file=sys.stderr)
+                request = client.build_request(
                     "GET",
                     sans.World(**{k: " ".join(v) for k, v in parameters.items()}),
-                ) as response:
-                    if known.url:
-                        print(response.url, end="\n\n")
-                    if known.headers:
-                        print(response.headers, end="\n\n")
-                    for element in response.iter_xml():
-                        pretty_print(element)
+                    headers={"User-Agent": agent},
+                )
+                if known.verbose:
+                    print(
+                        f"> {request.method} {request.url.path}?{request.url.params} HTTP/1.1",
+                        file=sys.stderr,
+                    )
+                    for key, value in request.headers.multi_items():
+                        print(f"> {key.title()}: {value}", file=sys.stderr)
+                    print(">", file=sys.stderr)
+                response = client.send(request)
+                if known.verbose:
+                    print(
+                        f"< HTTP/1.1 {response.status_code} {response.reason_phrase}",
+                        file=sys.stderr,
+                    )
+                    for key, value in response.headers.multi_items():
+                        print(f"< {key.title()}: {value}", file=sys.stderr)
+                    print("<", file=sys.stderr)
+                if response.content_type == "text/xml":
+                    pretty_print(response.xml)
+                elif response.content_type == "text/plain":
+                    print(response.text)
+                else:
+                    print(response.content)
                 if known.quit:
                     print("Exiting...", file=sys.stderr)
-                    return
-            except Exception:
-                traceback.print_exc()
-            except BaseException:
-                known.quit = True  # bypass the finally block below
-                raise
-            finally:
-                if not known.quit:
-                    input_ = shlex.split(input(f">>> {parser.prog} "))
+                    sys.exit(0)
 
 
 def pretty_print(element: ET.Element) -> None:
