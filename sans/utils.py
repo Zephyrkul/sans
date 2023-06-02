@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import sys
+from contextlib import ExitStack
 from typing import Any, Coroutine, overload
 from xml.etree import ElementTree as etree
 
 import httpx
 
 from .auth import NSAuth
-from .client import AsyncClientType, ClientType
+from .client import AsyncClient, Client
 from .response import Response
 from .url import Command
 
@@ -16,20 +17,20 @@ __all__ = ["prepare_and_execute", "indent"]
 
 @overload
 def prepare_and_execute(
-    client: ClientType, auth: NSAuth, nation: str, c: str, **parameters: str
+    client: Client | None, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
     ...
 
 
 @overload
 async def prepare_and_execute(
-    client: AsyncClientType, auth: NSAuth, nation: str, c: str, **parameters: str
+    client: AsyncClient, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
     ...
 
 
 def prepare_and_execute(
-    client: ClientType | AsyncClientType,
+    client: Client | AsyncClient | None,
     auth: NSAuth,
     nation: str,
     c: str,
@@ -37,16 +38,21 @@ def prepare_and_execute(
 ) -> Response | Coroutine[Any, Any, Response]:
     if isinstance(client, httpx.AsyncClient):
         return _prepare_async(client, auth, nation, c, **parameters)
-    request = Command(nation, c, **parameters, mode="prepare")
-    response = client.get(request, auth=auth)
-    response.raise_for_status()
-    token: str = response.xml.find("SUCCESS").text  # type: ignore
-    request = Command(nation, c, **parameters, mode="execute", token=token)
-    return client.get(request, auth=auth)
+    with ExitStack() as stack:
+        if not client:
+            client = stack.enter_context(Client())
+        request = Command(nation, c, **parameters, mode="prepare")
+        response = client.get(request, auth=auth)
+        response.raise_for_status()
+        token: str = response.xml.find("SUCCESS").text  # type: ignore
+        request = Command(nation, c, **parameters, mode="execute", token=token)
+        return client.get(request, auth=auth)
+    # pyright incorrectly believes this line is reachable
+    assert False  # noqa: B011
 
 
 async def _prepare_async(
-    client: AsyncClientType, auth: NSAuth, nation: str, c: str, **parameters: str
+    client: AsyncClient, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
     request = Command(nation, c, **parameters, mode="prepare")
     response = await client.get(request, auth=auth)
