@@ -8,26 +8,15 @@ from collections import deque
 from contextvars import Context, copy_context
 from functools import partial
 from operator import add
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Awaitable,
-    Callable,
-    Mapping,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 import anyio
 import sniffio
-from anyio.lowlevel import (
-    cancel_shielded_checkpoint,
-    checkpoint_if_cancelled,
-)
+from anyio.lowlevel import cancel_shielded_checkpoint, checkpoint_if_cancelled
 
 if TYPE_CHECKING:
     from typing_extensions import TypeVarTuple, Unpack
 
-    _KT = TypeVar("_KT")
     _Ts = TypeVarTuple("_Ts")
 
 __all__ = ["ResetLock"]
@@ -79,11 +68,21 @@ else:
             callback_deque.remove(release)
 
 
-def _get_as_int(mapping: Mapping[_KT, Any], key: _KT, default: int) -> int:
-    try:
-        return int(mapping[key])
-    except (KeyError, ValueError):
-        return default
+class _AntiCTX:
+    def __init__(self, ctx: Any) -> None:
+        self._ctx = ctx
+
+    def __enter__(self) -> None:
+        self._ctx.__exit__(None, None, None)
+
+    def __exit__(self, *_) -> None:
+        self._ctx.__enter__()
+
+    async def __aenter__(self):
+        await self._ctx.__aexit__(None, None, None)
+
+    async def __aexit__(self, *_):
+        await self._ctx.__aenter__()
 
 
 class _ThreadTimer(threading.Timer):
@@ -100,12 +99,16 @@ class _ThreadTimer(threading.Timer):
 
     def when(self) -> float:
         # when the timer completes if started at this very moment
-        return time.monotonic() + self.interval
+        return self.interval + time.monotonic()
 
     def run(self) -> None:
         # freeze .when() at the current time
-        self.when = partial(add, time.monotonic(), self.interval)
-        return super().run()
+        self.when = partial(add, self.interval, time.monotonic())
+        try:
+            return super().run()
+        finally:
+            self.when = time.monotonic
+            del self.function, self.args, self.kwargs
 
 
 # I would love to make this utilize a semaphore instead
@@ -113,7 +116,7 @@ class _ThreadTimer(threading.Timer):
 # locking and checking the headers sequentially is a requirement
 class ResetLock:
     """
-    Combination :class:`asyncio.Lock` and :class:`threading.Lock`
+    Combination :class:`asyncio.Lock`, :class:`trio.Lock`, and :class:`threading.Lock`
     for ratelimiting purposes. Works based on a FIFO queue.
 
     Usage::
@@ -181,14 +184,23 @@ class ResetLock:
         self.release()
 
     @property
-    def deferred(self) -> float:
+    def unlock(self):
+        if not self.locked():
+            raise RuntimeError("Cannot unlock an already unlocked lock.")
+        return _AntiCTX(self)
+
+    @property
+    def deferred(self) -> float | None:
         """
-        Returns when the lock is scheduled to be released according to internal monotonic clocks,
-        or 0 if the lock isn't deferred.
+        Returns when the lock is scheduled to be released in seconds from now,
+        or None if the lock isn't deferred.
+
+        Note that this is only the *schedule* - the value could be
+        0.0 or even negative if the deferring thread falls behind.
         """
         if self.__deferred:
-            return self.__deferred.when()
-        return 0.0
+            return time.monotonic() - self.__deferred.when()
+        # return None
 
     _deferred = property(deferred.fget)
 
@@ -196,9 +208,9 @@ class ResetLock:
     def _deferred(self, value: _ThreadTimer):
         assert self.locked()
         self.__finalizer()
-        self.__deferred = value
-        self.__finalizer = weakref.finalize(self, value.cancel)
         value.start()
+        self.__deferred = value
+        self.__finalizer = weakref.finalize(self, value.finished.set)
 
     @_deferred.deleter
     def _deferred(self) -> None:
@@ -206,19 +218,10 @@ class ResetLock:
         self.__finalizer()
         del self.__deferred
 
-    def maybe_defer(self, response_headers: Mapping[str, str]) -> None:
+    def defer(self, delay: float) -> None:
         if not self.locked():
             return
-
-        xra = _get_as_int(response_headers, "Retry-After", 0)
-        if xra:
-            self._deferred = _ThreadTimer(xra, self._release)
-            return
-        xrlr = _get_as_int(response_headers, "RateLimit-Remaining", 1)
-        if xrlr:
-            return
-        xrlr = _get_as_int(response_headers, "RateLimit-Reset", 0)
-        self._deferred = _ThreadTimer(xrlr, self._release)
+        self._deferred = _ThreadTimer(delay, self._release)
 
     def locked(self):
         return self._lock.locked()
@@ -236,6 +239,8 @@ class ResetLock:
 
 
 if __name__ == "__main__":
+    from concurrent.futures import ThreadPoolExecutor
+
     from anyio.lowlevel import checkpoint
 
     async def main():
@@ -245,7 +250,7 @@ if __name__ == "__main__":
             print("before threading lock")
             with lock:
                 print("during threading lock")
-                lock.maybe_defer({"Retry-After": "1"})
+                lock.defer(1)
             print("after threading lock")
 
         async def async_target(lock=lock):
@@ -253,15 +258,16 @@ if __name__ == "__main__":
             print(f"before {lib} lock")
             async with lock:
                 print(f"during {lib} lock")
-                lock.maybe_defer({"Retry-After": "1"})
+                lock.defer(1)
                 await checkpoint()
             print(f"after {lib} lock")
 
-        async with anyio.create_task_group() as group:
-            for _ in range(5):
-                group.start_soon(async_target)
-                threading.Thread(target=target, daemon=True).start()
-                await checkpoint()
+        with ThreadPoolExecutor() as pool:
+            async with anyio.create_task_group() as group:
+                for _ in range(5):
+                    group.start_soon(async_target)
+                    pool.submit(target)
+                    await checkpoint()
 
     anyio.run(main, backend="asyncio")
     anyio.run(main, backend="trio")
