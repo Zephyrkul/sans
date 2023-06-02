@@ -65,11 +65,15 @@ class NSAuth(RateLimiter):
                 headers["X-Pin"] = pin
         elif self._password:
             headers["X-Password"] = self._password
-        request = Request("POST", API_URL, headers=headers, data=params)
+        if "c" in params or request.method == "POST":
+            # coerce a POST request
+            headers.pop("Content-Type", None)
+            headers.pop("Content-Length", None)
+            request = Request("POST", API_URL, headers=headers, data=params)
         return super()._request_hook(request)
 
     def _response_hook(self, response: Response) -> None:
-        autologin = response.headers.get("X-Autologin")
+        autologin: str | None = response.headers.get("X-Autologin")
         if autologin:
             self.autologin = autologin
             pin = response.headers.get("X-Pin")
