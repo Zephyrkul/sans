@@ -81,30 +81,50 @@ if __name__ == "__main__":
    asyncio.run(main())
 ```
 
+### Authentication
+
+```py
+auth = sans.NSAuth(password="hunter2")
+sans.get(sans.Nation("testlandia", "ping"), auth=auth)
+# X-Autologin is automatically retrieved and stored for when the auth object is re-used
+print(auth.autologin)
+# X-Pin is cached internally for repeated requests
+root = sans.get(sans.Nation("testlandia", "packs"), auth=auth).xml
+```
+
+### Telegrams
+
+```py
+limiter = sans.TelegramLimiter(recruitment=False)
+# The Telegram API can be used without a TelegramLimiter, but marking it ahead of time can save an API call.
+response = sans.get(sans.Telegram(client="abcd1234", tgid="1234", key="abcdef1234567890", to="testlandia"), auth=limiter)
+assert response.content = b"queued"
+```
+
 ## Command Line
 
 ```xml
 sans --nation darcania census --scale "65 66" --mode score --agent Darcania
 <NATION id="darcania">
-  <CENSUS>
-    <SCALE id="65">
-      <SCORE>8145.00</SCORE>
-    </SCALE>
-    <SCALE id="66">
-      <SCORE>0.00</SCORE>
-    </SCALE>
-  </CENSUS>
+   <CENSUS>
+      <SCALE id="65">
+         <SCORE>8145.00</SCORE>
+      </SCALE>
+      <SCALE id="66">
+         <SCORE>0.00</SCORE>
+      </SCALE>
+   </CENSUS>
 </NATION>
 
 sans --nation testlandia fullname
 <NATION id="testlandia">
-  <FULLNAME>The Hive Mind of Testlandia</FULLNAME>
+   <FULLNAME>The Hive Mind of Testlandia</FULLNAME>
 </NATION>
 
 sans --region "the north pacific" numnations lastupdate
 <REGION id="the_north_pacific">
-  <LASTUPDATE>1685681810</LASTUPDATE>
-  <NUMNATIONS>9535</NUMNATIONS>
+   <LASTUPDATE>1685681810</LASTUPDATE>
+   <NUMNATIONS>9535</NUMNATIONS>
 </REGION>
 
 sans --quit
