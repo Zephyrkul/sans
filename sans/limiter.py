@@ -100,14 +100,15 @@ class RateLimiter(httpx.Auth):
             if request.url.copy_with(query=None) == API_URL:
                 if is_telegram_limiter:
                     stack.enter_context(TelegramLimiter._lock)
-                    time.sleep(
-                        max(
-                            TelegramLimiter._last_request
-                            + self._recruitment_delay
-                            - time.monotonic(),
-                            0,
+                    if TelegramLimiter._last_request is not None:
+                        time.sleep(
+                            max(
+                                TelegramLimiter._last_request
+                                + self._recruitment_delay
+                                - time.monotonic(),
+                                0,
+                            )
                         )
-                    )
                 stack.enter_context(RateLimiter._lock)
             # The below is equivalent to: return (yield from self.auth_flow(request))
             # but with exponential backoff, locking, and ratelimit retry added.
@@ -149,6 +150,7 @@ class RateLimiter(httpx.Auth):
                                     )
                                     is_telegram_limiter = True
                                     # infer the recruitment delay from the headers
+                                    assert TelegramLimiter._last_request is not None
                                     if (
                                         time.monotonic() + retry
                                         > TelegramLimiter._last_request + 105
@@ -203,14 +205,15 @@ class RateLimiter(httpx.Auth):
             if request.url.copy_with(query=None) == API_URL:
                 if is_telegram_limiter:
                     await stack.enter_async_context(TelegramLimiter._lock)
-                    await anyio.sleep(
-                        max(
-                            TelegramLimiter._last_request
-                            + self._recruitment_delay
-                            - time.monotonic(),
-                            0,
+                    if TelegramLimiter._last_request is not None:
+                        await anyio.sleep(
+                            max(
+                                TelegramLimiter._last_request
+                                + self._recruitment_delay
+                                - time.monotonic(),
+                                0,
+                            )
                         )
-                    )
                 await stack.enter_async_context(RateLimiter._lock)
             # The below is equivalent to: return (yield from self.auth_flow(request))
             # but with exponential backoff, locking, and ratelimit retry added.
@@ -252,6 +255,7 @@ class RateLimiter(httpx.Auth):
                                     )
                                     is_telegram_limiter = True
                                     # infer the recruitment delay from the headers
+                                    assert TelegramLimiter._last_request is not None
                                     if (
                                         time.monotonic() + retry
                                         > TelegramLimiter._last_request + 105
@@ -300,7 +304,7 @@ class RateLimiter(httpx.Auth):
 
 class TelegramLimiter(RateLimiter):
     _lock: ClassVar = ResetLock()
-    _last_request: ClassVar[float] = 0.0
+    _last_request: ClassVar[float | None] = None
 
     def __init__(self, *, recruitment: bool) -> None:
         super().__init__()
