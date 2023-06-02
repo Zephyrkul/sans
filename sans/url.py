@@ -48,8 +48,6 @@ def World(*shards: str | _Shard, **parameters: str) -> httpx.URL:
     if q_str:
         query["q"] = q_str
     query.update(parameters)
-    if query.get("a", "").lower() == "sendtg":
-        raise RuntimeError("sans does not currently support the telegram API.")
     return API_URL.copy_with(params=query)
 
 

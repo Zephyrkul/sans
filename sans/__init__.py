@@ -28,12 +28,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing_extensions import Literal
 
-from . import _state
 from .auth import *
 from .client import *
 from .errors import *
-from .limiter import *
-from .lock import *
+from .limiter import RateLimiter as RateLimiter, TelegramLimiter as TelegramLimiter
 from .response import *
 from .url import *
 from .utils import *
@@ -74,17 +72,23 @@ def set_agent(new_agent: str, *, _force: Literal[False] = False) -> str:
     The actual newly set agent, including attached additional script information.
     """
 
-    if _state.agent and not _force:
+    if RateLimiter._agent and not _force:
         raise RuntimeError("Agent cannot be re-set")
     if not new_agent:
-        _state.agent = ""
+        RateLimiter._agent = ""
     else:
         import sys
 
         import httpx
 
-        _state.agent = (
+        RateLimiter._agent = (
             f"{new_agent} Python/{sys.version_info[0]}.{sys.version_info[1]} "
             f"httpx/{httpx.__version__} sans/{__version__}"
         )
-    return _state.agent
+    return RateLimiter._agent
+
+
+for obj in list(globals().values()):
+    if getattr(obj, "__module__", "").startswith(__name__):
+        obj.__module__ = __name__
+del obj  # type: ignore
