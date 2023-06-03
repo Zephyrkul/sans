@@ -137,18 +137,22 @@ def main() -> Never:
                             file=sys.stderr,
                         )
                     print(">", file=sys.stderr)
-                response = client.send(request)
-                if known.verbose:
-                    print(
-                        f"< HTTP/1.1 {response.status_code} {response.reason_phrase}",
-                        file=sys.stderr,
-                    )
-                    for key, value in response.headers.raw:
+                response = client.send(request, stream=True)
+                try:
+                    if known.verbose:
                         print(
-                            f"< {decoder(key).title()}: {decoder(value)}",
+                            f"< HTTP/1.1 {response.status_code} {response.reason_phrase}",
                             file=sys.stderr,
                         )
-                    print("<", file=sys.stderr)
+                        for key, value in response.headers.raw:
+                            print(
+                                f"< {decoder(key).title()}: {decoder(value)}",
+                                file=sys.stderr,
+                            )
+                        print("<", file=sys.stderr)
+                    response.read()
+                finally:
+                    response.close()
                 if response.content_type == "text/xml":
                     pretty_print(response.xml)
                 elif response.content_type == "text/plain":
