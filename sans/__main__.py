@@ -133,7 +133,7 @@ def main() -> Never:
                     )
                     for key, value in request.headers.raw:
                         print(
-                            f"> {decoder(key).title()}: {decoder(value)}",
+                            f"> {decoder(key)}: {decoder(value)}",
                             file=sys.stderr,
                         )
                     print(">", file=sys.stderr)
@@ -146,7 +146,7 @@ def main() -> Never:
                         )
                         for key, value in response.headers.raw:
                             print(
-                                f"< {decoder(key).title()}: {decoder(value)}",
+                                f"< {decoder(key)}: {decoder(value)}",
                                 file=sys.stderr,
                             )
                         print("<", file=sys.stderr)
