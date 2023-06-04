@@ -52,6 +52,8 @@ class _ReInput:
             try:
                 with redirect_stdout(sys.stderr):
                     self.input = shlex.split(input(f"\n>>> {sans.__name__} "))
+                if not self.input:
+                    sys.exit(0)
             except EOFError:
                 sys.exit(0)
             return True
@@ -103,8 +105,6 @@ def main() -> Never:
                         print("No query provided. Exiting...", file=sys.stderr)
                         sys.exit(0)
                     print("No query provided.", file=sys.stderr)
-                    if not any(vars(known).values()):
-                        parser.print_help(sys.stderr)
                     continue
                 parameters: dict[str, list[str]] = {}
                 key = "q"
