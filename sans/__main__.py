@@ -19,15 +19,14 @@ except ImportError:
     pass
 
 
-if TYPE_CHECKING:
+def Syntax(arg: str, *_args: Any, **_kwargs: Any) -> object:
+    return arg
 
-    def Syntax(arg: str, *_args: Any, **_kwargs: Any) -> object:
-        return arg
 
-else:
+if not TYPE_CHECKING:
     try:
         from rich import print
-        from rich.syntax import Syntax
+        from rich.syntax import Syntax  # noqa: F811
         from rich.traceback import install
     except ImportError:
         pass
