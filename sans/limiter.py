@@ -21,9 +21,10 @@ from typing import (
 import anyio
 import httpx
 
+from ._lock import ResetLock
+
 # from . import _state
 from .errors import AgentNotSetError
-from .lock import ResetLock
 from .response import Response
 from .url import API_URL
 
