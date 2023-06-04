@@ -88,6 +88,24 @@ def set_agent(new_agent: str, *, _force: Literal[False] = False) -> str:
     return RateLimiter._agent
 
 
+def deferred() -> float | None:
+    """
+    Returns when the internal ratelimiting lock is scheduled to be
+    released in seconds from now, or None if the lock isn't deferred.
+
+    Note that this is only the *schedule* - the value could be
+    0.0 or even negative if the deferring thread falls behind.
+    """
+    return RateLimiter._lock.deferred
+
+
+def locked() -> bool:
+    """
+    Returns when the internal ratelimiting lock is locked.
+    """
+    return RateLimiter._lock.locked()
+
+
 for obj in list(globals().values()):
     if getattr(obj, "__module__", "").startswith(__name__):
         obj.__module__ = __name__

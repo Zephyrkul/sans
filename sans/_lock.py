@@ -168,13 +168,6 @@ class ResetLock:
 
     @property
     def deferred(self) -> float | None:
-        """
-        Returns when the lock is scheduled to be released in seconds from now,
-        or None if the lock isn't deferred.
-
-        Note that this is only the *schedule* - the value could be
-        0.0 or even negative if the deferring thread falls behind.
-        """
         if self.__deferred:
             return time.monotonic() - self.__deferred.when()
         # return None
