@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import overload
 
-from httpx import Request, Response
+import httpx
 
 from .limiter import RateLimiter
 from .url import API_URL
@@ -52,7 +52,7 @@ class NSAuth(RateLimiter):
             self._password = None  # no longer needed
         self._autologin = value
 
-    def _request_hook(self, request: Request) -> Request:
+    def _request_hook(self, request: httpx.Request) -> httpx.Request:
         params = request.url.params
         nation = params.get("nation")
         if not nation:
@@ -65,14 +65,19 @@ class NSAuth(RateLimiter):
                 headers["X-Pin"] = pin
         elif self._password:
             headers["X-Password"] = self._password
-        if "c" in params or request.method == "POST":
-            # coerce a POST request
-            headers.pop("Content-Type", None)
-            headers.pop("Content-Length", None)
-            request = Request("POST", API_URL, headers=headers, data=params)
+        try:
+            is_empty = not request.content
+        except httpx.RequestNotRead:
+            pass  # don't override content
+        else:
+            if is_empty and ("c" in params or request.method == "POST"):
+                # coerce a POST request
+                headers.pop("Content-Type", None)
+                headers.pop("Content-Length", None)
+                request = httpx.Request("POST", API_URL, headers=headers, data=params)
         return super()._request_hook(request)
 
-    def _response_hook(self, response: Response) -> None:
+    def _response_hook(self, response: httpx.Response) -> None:
         autologin: str | None = response.headers.get("X-Autologin")
         if autologin:
             self.autologin = autologin
