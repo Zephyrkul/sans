@@ -68,23 +68,6 @@ else:
             callback_deque.remove(release)
 
 
-class _AntiCTX:
-    def __init__(self, ctx: Any) -> None:
-        self._ctx = ctx
-
-    def __enter__(self) -> None:
-        self._ctx.__exit__(None, None, None)
-
-    def __exit__(self, *_) -> None:
-        self._ctx.__enter__()
-
-    async def __aenter__(self):
-        await self._ctx.__aexit__(None, None, None)
-
-    async def __aexit__(self, *_):
-        await self._ctx.__aenter__()
-
-
 class _ThreadTimer(threading.Timer):
     def __init__(
         self,
@@ -182,12 +165,6 @@ class ResetLock:
 
     def __exit__(self, *_):
         self.release()
-
-    @property
-    def unlock(self):
-        if not self.locked():
-            raise RuntimeError("Cannot unlock an already unlocked lock.")
-        return _AntiCTX(self)
 
     @property
     def deferred(self) -> float | None:

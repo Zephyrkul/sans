@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+import warnings
 from contextlib import AsyncExitStack, ExitStack
 from itertools import count, repeat, starmap
 from math import ldexp
@@ -56,6 +57,7 @@ class _Backoff:
 _backoff = _Backoff()
 
 
+# TODO: refactor I/O flows into multiple functions
 class RateLimiter(httpx.Auth):
     """
     httpx Auth utility object which implements ratelimiting, User-Agent management,
@@ -94,22 +96,24 @@ class RateLimiter(httpx.Auth):
     def sync_auth_flow(
         self, request: httpx.Request
     ) -> Generator[httpx.Request, httpx.Response, None]:
-        recruitment_delay: int = 0
-        is_telegram_limiter = isinstance(self, TelegramLimiter)
-        with ExitStack() as stack:
-            if request.url.copy_with(query=None) == API_URL:
+        recruitment_delay: int | None = getattr(self, "_recruitment_delay", None)
+        is_telegram_limiter = recruitment_delay is not None
+        with ExitStack() as lock_stack:
+            if request.headers["Host"] == API_URL.netloc.decode(
+                request.headers.encoding
+            ):
                 if is_telegram_limiter:
-                    stack.enter_context(TelegramLimiter._lock)
+                    lock_stack.enter_context(TelegramLimiter._lock)
                     if TelegramLimiter._last_request is not None:
                         time.sleep(
                             max(
                                 TelegramLimiter._last_request
-                                + self._recruitment_delay
+                                + recruitment_delay
                                 - time.monotonic(),
                                 0,
                             )
                         )
-                stack.enter_context(RateLimiter._lock)
+                lock_stack.enter_context(RateLimiter._lock)
             # The below is equivalent to: return (yield from self.auth_flow(request))
             # but with exponential backoff, locking, and ratelimit retry added.
             # See https://peps.python.org/pep-0380/#formal-semantics for details
@@ -141,37 +145,44 @@ class RateLimiter(httpx.Auth):
                             remaining = _get_as_int(
                                 _sent.headers, "Ratelimit-Remaining", 0
                             )
-                            with ExitStack() as unlock_stack:
-                                if remaining and not is_telegram_limiter:
-                                    # Unmarked Telegram API
-                                    LOG.warning(
-                                        "Telegram API was used without using sans.TelegramLimiter.",
-                                        stack_info=True,
-                                    )
-                                    is_telegram_limiter = True
-                                    # infer the recruitment delay from the headers
-                                    assert TelegramLimiter._last_request is not None
-                                    if (
-                                        time.monotonic() + retry
-                                        > TelegramLimiter._last_request + 105
-                                    ):
-                                        recruitment_delay = 180
+                            if remaining and not is_telegram_limiter:
+                                # Unmarked Telegram API
+                                warnings.warn(
+                                    "Telegram API was used without using sans.TelegramLimiter.",
+                                    stacklevel=5,
+                                )
+                                # Mark this as the Telegram API for next go around
+                                is_telegram_limiter = True
+                                # infer the recruitment delay
+                                before = time.monotonic()
+                                lock_stack.close()  # let other requests go through
+                                lock_stack.enter_context(
+                                    TelegramLimiter._lock
+                                )  # while acquiring the telegram lock in the outer stack
+                                if (
+                                    TelegramLimiter._last_request
+                                    and TelegramLimiter._last_request > before
+                                ):
+                                    # another task made a TG request while we were waiting
+                                    # guess when we can make a request next
+                                    if retry > 30:
+                                        retry = (
+                                            TelegramLimiter._last_request
+                                            + 180
+                                            - time.monotonic()
+                                        )
                                     else:
-                                        recruitment_delay = 30
-                                    unlock_stack.enter_context(
-                                        RateLimiter._lock.unlock
-                                    )  # let other requests go through
-                                    stack.enter_context(
-                                        TelegramLimiter._lock
-                                    )  # while acquiring the telegram lock in the outer stack
-                                    retry = max(
-                                        TelegramLimiter._last_request
-                                        + recruitment_delay
-                                        - time.monotonic(),
-                                        0,
-                                    )
-                                time.sleep(retry)
-                            # fall out of RL._lock.unlock scope
+                                        retry = (
+                                            TelegramLimiter._last_request
+                                            + 30
+                                            - time.monotonic()
+                                        )
+                                else:
+                                    retry = before + retry - time.monotonic()
+                            time.sleep(max(retry, 0))
+                            lock_stack.enter_context(
+                                RateLimiter._lock
+                            )  # re-enter the API lock
                             backoff = _backoff[:6]
                             continue
                     elif status in [500, 502]:
@@ -199,22 +210,24 @@ class RateLimiter(httpx.Auth):
     async def async_auth_flow(
         self, request: httpx.Request
     ) -> AsyncGenerator[httpx.Request, httpx.Response]:
-        recruitment_delay: int = 0
-        is_telegram_limiter = isinstance(self, TelegramLimiter)
-        async with AsyncExitStack() as stack:
-            if request.url.copy_with(query=None) == API_URL:
+        recruitment_delay: int | None = getattr(self, "_recruitment_delay", None)
+        is_telegram_limiter = recruitment_delay is not None
+        async with AsyncExitStack() as lock_stack:
+            if request.headers["Host"] == API_URL.netloc.decode(
+                request.headers.encoding
+            ):
                 if is_telegram_limiter:
-                    await stack.enter_async_context(TelegramLimiter._lock)
+                    await lock_stack.enter_async_context(TelegramLimiter._lock)
                     if TelegramLimiter._last_request is not None:
                         await anyio.sleep(
                             max(
                                 TelegramLimiter._last_request
-                                + self._recruitment_delay
+                                + recruitment_delay
                                 - time.monotonic(),
                                 0,
                             )
                         )
-                await stack.enter_async_context(RateLimiter._lock)
+                await lock_stack.enter_async_context(RateLimiter._lock)
             # The below is equivalent to: return (yield from self.auth_flow(request))
             # but with exponential backoff, locking, and ratelimit retry added.
             # See https://peps.python.org/pep-0380/#formal-semantics for details
@@ -246,37 +259,44 @@ class RateLimiter(httpx.Auth):
                             remaining = _get_as_int(
                                 _sent.headers, "Ratelimit-Remaining", 0
                             )
-                            async with AsyncExitStack() as unlock_stack:
-                                if remaining and not is_telegram_limiter:
-                                    # Unmarked Telegram API
-                                    LOG.warning(
-                                        "Telegram API was used without using sans.TelegramLimiter.",
-                                        stack_info=True,
-                                    )
-                                    is_telegram_limiter = True
-                                    # infer the recruitment delay from the headers
-                                    assert TelegramLimiter._last_request is not None
-                                    if (
-                                        time.monotonic() + retry
-                                        > TelegramLimiter._last_request + 105
-                                    ):
-                                        recruitment_delay = 180
+                            if remaining and not is_telegram_limiter:
+                                # Unmarked Telegram API
+                                warnings.warn(
+                                    "Telegram API was used without using sans.TelegramLimiter.",
+                                    stacklevel=5,
+                                )
+                                # Mark this as the Telegram API for next go around
+                                is_telegram_limiter = True
+                                # infer the recruitment delay
+                                before = time.monotonic()
+                                await lock_stack.aclose()  # let other requests go through
+                                await lock_stack.enter_async_context(
+                                    TelegramLimiter._lock
+                                )  # while acquiring the telegram lock in the outer stack
+                                if (
+                                    TelegramLimiter._last_request
+                                    and TelegramLimiter._last_request > before
+                                ):
+                                    # another task made a TG request while we were waiting
+                                    # guess when we can make a request next
+                                    if retry > 30:
+                                        retry = (
+                                            TelegramLimiter._last_request
+                                            + 180
+                                            - time.monotonic()
+                                        )
                                     else:
-                                        recruitment_delay = 30
-                                    await unlock_stack.enter_async_context(
-                                        RateLimiter._lock.unlock
-                                    )  # let other requests go through
-                                    await stack.enter_async_context(
-                                        TelegramLimiter._lock
-                                    )  # while acquiring the telegram lock in the outer stack
-                                    retry = max(
-                                        TelegramLimiter._last_request
-                                        + recruitment_delay
-                                        - time.monotonic(),
-                                        0,
-                                    )
-                                await anyio.sleep(retry)
-                            # fall out of RL._lock.unlock scope
+                                        retry = (
+                                            TelegramLimiter._last_request
+                                            + 30
+                                            - time.monotonic()
+                                        )
+                                else:
+                                    retry = before + retry - time.monotonic()
+                            await anyio.sleep(max(retry, 0))
+                            await lock_stack.enter_async_context(
+                                RateLimiter._lock
+                            )  # re-enter the API lock
                             backoff = _backoff[:6]
                             continue
                     elif status in [500, 502]:
