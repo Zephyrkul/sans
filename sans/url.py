@@ -23,6 +23,7 @@ __all__ = [
     "NationsDump",
     "RegionsDump",
     "CardsDump",
+    "Telegram",
 ]
 
 
