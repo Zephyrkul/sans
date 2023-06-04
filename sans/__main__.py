@@ -164,9 +164,17 @@ def main() -> Never:
                     sys.exit(0)
 
 
-def pretty_print(element: ET.Element) -> None:
-    sans.indent(element)
-    print(Syntax(ET.tostring(element, encoding="unicode").strip(), "xml"))
+def pretty_print(element: ET.Element, *, space: str = "  ") -> None:
+    sans.indent(element, space)
+    print(
+        Syntax(
+            ET.tostring(element, encoding="unicode").strip(),
+            "xml",
+            background_color="default",
+            indent_guides=True,
+            tab_size=len(space),
+        )
+    )
 
 
 if __name__ == "__main__":
