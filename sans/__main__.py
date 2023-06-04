@@ -26,13 +26,25 @@ def Syntax(arg: str, *_args: Any, **_kwargs: Any) -> object:
 if not TYPE_CHECKING:
     try:
         from rich import print
+        from rich.console import Console
+        from rich.logging import RichHandler
         from rich.syntax import Syntax  # noqa: F811
-        from rich.traceback import install
     except ImportError:
-        pass
+        logging.basicConfig(level=logging.ERROR)
     else:
-        install()
-        del install
+        _console = Console(stderr=True)
+        input = _console.input
+        logging.basicConfig(
+            level=logging.ERROR,
+            handlers=[RichHandler(console=_console, rich_tracebacks=True)],
+        )
+        del _console
+
+MAIN_LOG = logging.getLogger("sans.__main__")
+SANS_LOG = logging.getLogger("sans")
+ROOT_LOG = logging.getLogger()
+
+SANS_LOG.setLevel(logging.WARNING)
 
 
 class _ReInput:
@@ -47,10 +59,12 @@ class _ReInput:
         exc: BaseException | None = exc_details[1]
         if exc is None or isinstance(exc, Exception):
             if exc is not None:
-                sys.excepthook(type(exc), exc, exc.__traceback__)
+                MAIN_LOG.exception(
+                    "An exception occurred while handling your request:", exc_info=exc
+                )
             try:
                 with redirect_stdout(sys.stderr):
-                    self.input = shlex.split(input(f"\n>>> {sans.__name__} "))
+                    self.input = shlex.split(input(f"\n>>> {self.parser.prog} "))
                 if not self.input:
                     sys.exit(0)
             except EOFError:
@@ -61,7 +75,6 @@ class _ReInput:
 
 def main() -> Never:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False,
         description="SANS Console Entry",
         prog=sans.__name__,
         epilog="Any unknown args will be used to build the API request.",
@@ -78,10 +91,13 @@ def main() -> Never:
         "-v",
         "--url",
         "--headers",
-        action="store_true",
+        action="count",
+        default=0,
         help="prints extra info about the request and response",
     )
-    parser.add_argument("--version", action="version", version=sans.__version__)
+    parser.add_argument(
+        "--version", action="version", version=f"{parser.prog} {sans.__version__}"
+    )
     reinput = _ReInput(parser)
     agent: str = ""
     decoder: Callable[[bytes], str] = methodcaller(
@@ -90,6 +106,11 @@ def main() -> Never:
     with sans.Client() as client:
         while True:
             with reinput as (known, unknown):
+                level = max(
+                    logging.DEBUG, logging.WARNING - logging.DEBUG * known.verbose
+                )
+                SANS_LOG.setLevel(level)
+                ROOT_LOG.setLevel(level + logging.DEBUG)
                 if known.agent:
                     try:
                         agent = sans.set_agent(known.agent)
