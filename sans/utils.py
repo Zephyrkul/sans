@@ -42,15 +42,17 @@ def prepare_and_execute(
     with ExitStack() as stack:
         if not client:
             client = stack.enter_context(Client())
-        request = Command(nation, c, **parameters, mode="prepare")
-        response = client.get(request, auth=auth)
+        parameters.update(mode="prepare")
+        url = Command(nation, c, **parameters)
+        response = client.get(url, auth=auth)
         response.raise_for_status()
         error = response.xml.findtext("ERROR", default="")
         if error:
             raise PrivateCommandError(error, response=response)
         token = response.xml.findtext("SUCCESS", default="")
-        request = Command(nation, c, **parameters, mode="execute", token=token)
-        return client.get(request, auth=auth)
+        parameters.update(mode="execute", token=token)
+        url = Command(nation, c, **parameters, mode="execute", token=token)
+        return client.get(url, auth=auth)
     # pyright incorrectly believes this line is reachable
     assert False  # noqa: B011
 
@@ -58,15 +60,17 @@ def prepare_and_execute(
 async def _prepare_async(
     client: AsyncClient, auth: NSAuth, nation: str, c: str, **parameters: str
 ) -> Response:
-    request = Command(nation, c, **parameters, mode="prepare")
-    response = await client.get(request, auth=auth)
+    parameters.update(mode="prepare")
+    url = Command(nation, c, **parameters)
+    response = await client.get(url, auth=auth)
     response.raise_for_status()
     error = response.xml.findtext("ERROR", default="")
     if error:
         raise PrivateCommandError(error, response=response)
     token = response.xml.findtext("SUCCESS", default="")
-    request = Command(nation, c, **parameters, mode="execute", token=token)
-    return await client.get(request, auth=auth)
+    parameters.update(mode="execute", token=token)
+    url = Command(nation, c, **parameters)
+    return await client.get(url, auth=auth)
 
 
 if sys.version_info < (3, 9):
