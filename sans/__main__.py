@@ -7,6 +7,7 @@ import logging
 import shlex
 import sys
 from contextlib import redirect_stdout
+from getpass import getpass
 from operator import methodcaller
 from typing import TYPE_CHECKING, Any, Callable, NoReturn as Never
 from xml.etree import ElementTree as ET
@@ -81,6 +82,11 @@ def main() -> Never:
     )
     parser.add_argument("--agent", "-A", help="set the script's user agent")
     parser.add_argument(
+        "--auth",
+        action="store_true",
+        help="Prompt for a password for using private shards",
+    )
+    parser.add_argument(
         "--quit",
         "--exit",
         action="store_true",
@@ -100,6 +106,7 @@ def main() -> Never:
     )
     reinput = _ReInput(parser)
     agent: str = ""
+    auth = sans.NSAuth()  # type: ignore
     decoder: Callable[[bytes], str] = methodcaller(
         "decode", encoding=sys.stderr.encoding, errors="replace"
     )
@@ -111,6 +118,8 @@ def main() -> Never:
                 )
                 SANS_LOG.setLevel(level)
                 ROOT_LOG.setLevel(level + logging.DEBUG)
+                if known.auth:
+                    auth.password = getpass()
                 if known.agent:
                     try:
                         agent = sans.set_agent(known.agent)
@@ -157,7 +166,7 @@ def main() -> Never:
                             file=sys.stderr,
                         )
                     print(">", file=sys.stderr)
-                response = client.send(request, stream=True)
+                response = client.send(request, auth=auth, stream=True)
                 try:
                     if known.verbose:
                         print(
@@ -175,7 +184,7 @@ def main() -> Never:
                     response.close()
                 if response.content_type == "text/xml":
                     pretty_print(response.xml)
-                elif response.content_type == "text/plain":
+                elif response.content_type.startswith("text/"):
                     print(response.text)
                 else:
                     print(response.content)
