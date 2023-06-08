@@ -119,6 +119,7 @@ def main() -> Never:
                 SANS_LOG.setLevel(level)
                 ROOT_LOG.setLevel(level + logging.DEBUG)
                 if known.auth:
+                    auth.autologin = None
                     auth.password = getpass()
                 if known.agent:
                     try:
