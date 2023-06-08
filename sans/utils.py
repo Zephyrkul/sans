@@ -9,6 +9,7 @@ import httpx
 
 from .auth import NSAuth
 from .client import AsyncClient, Client
+from .errors import PrivateCommandError
 from .response import Response
 from .url import Command
 
@@ -44,7 +45,10 @@ def prepare_and_execute(
         request = Command(nation, c, **parameters, mode="prepare")
         response = client.get(request, auth=auth)
         response.raise_for_status()
-        token: str = response.xml.find("SUCCESS").text  # type: ignore
+        error = response.xml.findtext("ERROR", default="")
+        if error:
+            raise PrivateCommandError(error, response=response)
+        token = response.xml.findtext("SUCCESS", default="")
         request = Command(nation, c, **parameters, mode="execute", token=token)
         return client.get(request, auth=auth)
     # pyright incorrectly believes this line is reachable
@@ -57,7 +61,10 @@ async def _prepare_async(
     request = Command(nation, c, **parameters, mode="prepare")
     response = await client.get(request, auth=auth)
     response.raise_for_status()
-    token: str = response.xml.find("SUCCESS").text  # type: ignore
+    error = response.xml.findtext("ERROR", default="")
+    if error:
+        raise PrivateCommandError(error, response=response)
+    token = response.xml.findtext("SUCCESS", default="")
     request = Command(nation, c, **parameters, mode="execute", token=token)
     return await client.get(request, auth=auth)
 

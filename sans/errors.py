@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, ClassVar, Collection
 
+import httpx
+
 # as ... to mark for re-export
 from httpx import HTTPStatusError as HTTPStatusError
 
@@ -17,6 +19,7 @@ else:
 
 __all__ = [
     "AgentNotSetError",
+    "PrivateCommandError",
     "HTTPStatusError",  # re-export
     "ClientError",
     "BadRequest",
@@ -30,7 +33,23 @@ __all__ = [
 
 
 class AgentNotSetError(RuntimeError):
-    pass
+    """Exception raised when you haven't yet set a user agent via sans.set_agent"""
+
+
+class PrivateCommandError(Exception):
+    """
+    Exception raised when a private command failed to execute.
+
+    Attributes:
+        args (tuple[str]): The reason for the failure
+        request (httpx.Request): The request which generated the failure
+        response (httpx.Response): The server response
+    """
+
+    def __init__(self, *args: object, response: httpx.Response) -> None:
+        super().__init__(*args)
+        self.request = response.request
+        self.response = response
 
 
 def narrow(original: HTTPStatusError) -> HTTPStatusError:
