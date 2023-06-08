@@ -191,6 +191,7 @@ def main() -> Never:
                             response.text,
                             response.content_type.partition("/")[2],
                             background_color="default",
+                            word_wrap=True,
                         )
                     )
                 else:
@@ -209,6 +210,7 @@ def pretty_print(element: ET.Element, *, space: str = "  ") -> None:
             background_color="default",
             indent_guides=True,
             tab_size=len(space),
+            word_wrap=True,
         )
     )
 
