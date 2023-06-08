@@ -186,7 +186,13 @@ def main() -> Never:
                 if response.content_type == "text/xml":
                     pretty_print(response.xml)
                 elif response.content_type.startswith("text/"):
-                    print(response.text)
+                    print(
+                        Syntax(
+                            response.text,
+                            response.content_type.partition("/")[2],
+                            background_color="default",
+                        )
+                    )
                 else:
                     print(response.content)
                 if known.quit:
