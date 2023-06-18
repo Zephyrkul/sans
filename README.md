@@ -68,7 +68,7 @@ async def main():
          mode="score",
          scale="65 66",
       )
-      root = (await client.send(request)).xml
+      root = (await client.get(request)).xml
       sans.indent(root)
       print(ET.tostring(root, encoding="unicode"))
 
