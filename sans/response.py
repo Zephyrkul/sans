@@ -19,12 +19,13 @@ except ImportError:
 
 try:
     from lxml.etree import _Element
+    from lxml.objectify import ObjectifiedElement
 
     HAS_LXML = True
 except ImportError:
     HAS_LXML = False
 else:
-    from .decoder import LXMLDecoder
+    from .decoder import LXMLDecoder, ObjectifyDecoder
 
 __all__ = ["Response"]
 
@@ -100,6 +101,15 @@ class Response(httpx.Response):
                 decoder.decode(content)
                 self._lxml = decoder.flush()
             return self._lxml
+
+        @property
+        def objectified(self) -> ObjectifiedElement:
+            if not hasattr(self, "_objectified"):
+                content = self.content
+                decoder = ObjectifyDecoder(self.encoding)
+                decoder.decode(content)
+                self._objectified = decoder.flush()
+            return self._objectified
 
     def raise_for_status(self) -> None:
         try:

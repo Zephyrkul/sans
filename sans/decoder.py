@@ -75,6 +75,7 @@ try:
         XMLParser as LXMLParser,
         _Element as LElement,
     )
+    from lxml.objectify import ObjectifiedElement, ObjectifyElementClassLookup
 except ImportError:
     pass
 else:
@@ -88,3 +89,16 @@ else:
 
         def flush(self) -> LElement:
             return self._parser.close()
+
+    class ObjectifyDecoder:
+        def __init__(self, encoding: str | None = None) -> None:
+            self._parser = parser = LXMLParser(
+                encoding=encoding, remove_blank_text=True
+            )
+            parser.set_element_class_lookup(ObjectifyElementClassLookup())
+
+        def decode(self, data: bytes) -> None:
+            self._parser.feed(data)
+
+        def flush(self) -> ObjectifiedElement:
+            return self._parser.close()  # type: ignore
