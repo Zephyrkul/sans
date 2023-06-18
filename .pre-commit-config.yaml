@@ -19,7 +19,7 @@ repos:
     hooks:
     -   id: black
 -   repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.313
+    rev: v1.1.314
     hooks:
     -   id: pyright
         additional_dependencies:
