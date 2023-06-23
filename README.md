@@ -9,7 +9,7 @@
 
 **S**ynchronous / **A**synchronous **N**ation**S**tates
 
-A [fully typed](https://docs.python.org/3/library/typing.html>) extension for [HTTPX](https://www.python-httpx.org/) for the [NationStates API](https://www.nationstates.net/pages/api.html).
+A [fully typed](https://docs.python.org/3/library/typing.html) extension for [HTTPX](https://www.python-httpx.org/) for the [NationStates API](https://www.nationstates.net/pages/api.html).
 
 ## Installing
 
