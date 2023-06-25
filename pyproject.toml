@@ -15,6 +15,7 @@
     classifiers = [
         'Development Status :: 5 - Production/Stable',
         'Framework :: AsyncIO',
+        'Framework :: AnyIO',
         'License :: OSI Approved :: MIT License',
         'Intended Audience :: Developers',
         'Natural Language :: English',
