@@ -1,6 +1,7 @@
 # sans
 
-[![pypi](https://img.shields.io/pypi/v/sans.svg) ![Licensed under the MIT License](https://img.shields.io/pypi/l/sans.svg)](https://pypi.org/project/sans/)
+[![pypi](https://img.shields.io/pypi/v/sans.svg)](https://pypi.org/project/sans/)
+[![Licensed under the MIT License](https://img.shields.io/pypi/l/sans.svg)](https://choosealicense.com/licenses/mit/)
 [![Downloads](https://static.pepy.tech/badge/sans)](https://pepy.tech/project/sans)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json)](https://github.com/charliermarsh/ruff)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -22,6 +23,10 @@ Development version:
 ```sh
 python3 -m pip install -U https://github.com/zephyrkul/sans/archive/master.zip#egg=sans
 ```
+
+## Support
+
+If you need help with using sans, find a bug, or have a feature request, feel free to find me in the [NS Coders](https://discord.gg/SgwWMTN) Discord server, or [file an issue](https://github.com/Zephyrkul/sans/issues/new/choose).
 
 ## Examples
 
