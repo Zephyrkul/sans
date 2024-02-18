@@ -62,7 +62,7 @@ def Command(nation: str, c: str, **parameters: str) -> httpx.URL:
     return World(nation=nation, c=c, **parameters)
 
 
-def Telegram(client: str, tgid: str, key: str, to: str):
+def Telegram(client: str, tgid: str, key: str, to: str) -> httpx.URL:
     return World(a="sendtg", client=client, tgid=tgid, key=key, to=to)
 
 
