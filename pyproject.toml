@@ -30,38 +30,32 @@
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Utilities',
-        'Typing :: Typed'
+        'Typing :: Typed',
     ]
     dependencies = [
         'httpx ~= 0.23',
-        'importlib_metadata >= 1.4.0; python_version < "3.8"'
+        'importlib_metadata >= 1.4.0; python_version < "3.8"',
     ]
     dynamic = ['version']
 
 [project.license]
-file = 'LICENSE'
+    file = 'LICENSE'
 
 [[project.authors]]
-name = 'Zephyrkul'
+    name = 'Zephyrkul'
 
 [project.urls]
-homepage = 'https://github.com/Zephyrkul/sans'
-documentation = 'https://sans.readthedocs.io/en/stable/'
-repository = 'https://github.com/Zephyrkul/sans.git'
+    homepage = 'https://github.com/Zephyrkul/sans'
+    documentation = 'https://sans.readthedocs.io/en/stable/'
+    repository = 'https://github.com/Zephyrkul/sans.git'
 
 [project.scripts]
-sans = 'sans.__main__:main'
+    sans = 'sans.__main__:main'
 
 [project.optional-dependencies]
-docs = [
-    'Sphinx ~= 5.3'
-]
-lxml = [
-    'lxml ~= 4.9'
-]
-json = [
-    'xmltodict ~= 0.13'
-]
+    docs = ['Sphinx ~= 5.3']
+    lxml = ['lxml ~= 4.9']
+    json = ['xmltodict ~= 0.13']
 
 [tool.setuptools_scm]
 
@@ -80,8 +74,8 @@ json = [
     ignore = ['E501']
 
 [tool.ruff.isort]
-combine-as-imports = true
-extra-standard-library = ['typing_extensions']
+    combine-as-imports = true
+    extra-standard-library = ['typing_extensions']
 
 [tool.ruff.per-file-ignores]
     "**/__init__.py" = ['F403']
