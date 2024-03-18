@@ -133,9 +133,9 @@ class ResetLock:
     async def __aenter__(self) -> None:
         acquire = self._lock.acquire
         waiters = self._waiters
-        sleep_forever: Callable[
-            [deque[Callable[[], Any]]], Awaitable[None]
-        ] = globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        sleep_forever: Callable[[deque[Callable[[], Any]]], Awaitable[None]] = (
+            globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        )
         await checkpoint_if_cancelled()
         if not waiters:
             if acquire(False):
