@@ -50,7 +50,7 @@ else:
 
     @trio.lowlevel.enable_ki_protection
     async def _trio_sleep_forever(
-        callback_deque: deque[Callable[[], Any]]
+        callback_deque: deque[Callable[[], Any]],
     ) -> Awaitable[None]:
         task = trio.lowlevel.current_task()
         release = partial(

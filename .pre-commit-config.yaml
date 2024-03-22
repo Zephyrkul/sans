@@ -14,10 +14,7 @@ repos:
     hooks:
     -   id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
--   repo: https://github.com/psf/black
-    rev: 24.2.0
-    hooks:
-    -   id: black
+    -   id: ruff-format
 -   repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.350
     hooks:
@@ -39,6 +36,7 @@ repos:
         -   lxml-stubs @ https://github.com/lxml/lxml-stubs/archive/master.zip#egg=lxml-stubs
         -   anyio[trio]
 ci:
+    autoupdate_schedule: quarterly
     skip:
     # CI doesn't like pip scripts calling their own node, so skip this for now
     -   pyright

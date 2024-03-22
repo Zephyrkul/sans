@@ -268,7 +268,9 @@ class RateLimiter(httpx.Auth):
                                 is_telegram_limiter = True
                                 # infer the recruitment delay
                                 before = time.monotonic()
-                                await lock_stack.aclose()  # let other requests go through
+                                await (
+                                    lock_stack.aclose()
+                                )  # let other requests go through
                                 await lock_stack.enter_async_context(
                                     TelegramLimiter._lock
                                 )  # while acquiring the telegram lock in the outer stack
