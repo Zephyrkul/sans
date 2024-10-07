@@ -19,12 +19,10 @@ __all__ = ["NSAuth"]
 
 class NSAuth(RateLimiter):
     @overload
-    def __init__(self, *, password: str) -> None:
-        ...
+    def __init__(self, *, password: str) -> None: ...
 
     @overload
-    def __init__(self, *, autologin: str) -> None:
-        ...
+    def __init__(self, *, autologin: str) -> None: ...
 
     def __init__(
         self, *, password: str | None = None, autologin: str | None = None

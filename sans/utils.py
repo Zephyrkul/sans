@@ -19,15 +19,13 @@ __all__ = ["prepare_and_execute", "indent"]
 @overload
 def prepare_and_execute(
     client: Client | None, auth: NSAuth, nation: str, c: str, **parameters: str
-) -> Response:
-    ...
+) -> Response: ...
 
 
 @overload
 async def prepare_and_execute(
     client: AsyncClient, auth: NSAuth, nation: str, c: str, **parameters: str
-) -> Response:
-    ...
+) -> Response: ...
 
 
 def prepare_and_execute(
