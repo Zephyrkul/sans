@@ -19,15 +19,13 @@ __all__ = ["prepare_and_execute", "indent"]
 @overload
 def prepare_and_execute(
     client: Client | None, auth: NSAuth, nation: str, c: str, **parameters: str
-) -> Response:
-    ...
+) -> Response: ...
 
 
 @overload
 async def prepare_and_execute(
     client: AsyncClient, auth: NSAuth, nation: str, c: str, **parameters: str
-) -> Response:
-    ...
+) -> Response: ...
 
 
 def prepare_and_execute(
@@ -53,8 +51,6 @@ def prepare_and_execute(
         parameters.update(mode="execute", token=token)
         url = Command(nation, c, **parameters, mode="execute", token=token)
         return client.get(url, auth=auth)
-    # pyright incorrectly believes this line is reachable
-    assert False  # noqa: B011
 
 
 async def _prepare_async(
@@ -80,6 +76,7 @@ if sys.version_info < (3, 9):
     ):
         if isinstance(tree, etree.ElementTree):
             tree = tree.getroot()
+        assert isinstance(tree, etree.Element)
         if level < 0:
             raise ValueError(f"Initial indentation level must be >= 0, got {level}")
         if not len(tree):

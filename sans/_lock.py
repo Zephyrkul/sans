@@ -35,11 +35,11 @@ def _threading_sleep_forever(callback_deque: deque[Callable[[], Any]]):
 async def _asyncio_sleep_forever(callback_deque: deque[Callable[[], Any]]) -> None:
     future = asyncio.get_running_loop().create_future()
     release = partial(future.get_loop().call_soon_threadsafe, future.set_result, None)
-    callback_deque.append(release)
+    callback_deque.append(release)  # type: ignore
     try:
         await future
     finally:
-        callback_deque.remove(release)
+        callback_deque.remove(release)  # type: ignore
 
 
 try:
@@ -58,14 +58,14 @@ else:
             trio.lowlevel.reschedule,
             task,
         )
-        callback_deque.append(release)
+        callback_deque.append(release)  # type: ignore
 
         try:
             return await trio.lowlevel.wait_task_rescheduled(
                 lambda _: trio.lowlevel.Abort.SUCCEEDED
             )
         finally:
-            callback_deque.remove(release)
+            callback_deque.remove(release)  # type: ignore
 
 
 class _ThreadTimer(threading.Timer):
@@ -133,9 +133,9 @@ class ResetLock:
     async def __aenter__(self) -> None:
         acquire = self._lock.acquire
         waiters = self._waiters
-        sleep_forever: Callable[
-            [deque[Callable[[], Any]]], Awaitable[None]
-        ] = globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        sleep_forever: Callable[[deque[Callable[[], Any]]], Awaitable[None]] = (
+            globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+        )
         await checkpoint_if_cancelled()
         if not waiters:
             if acquire(False):
