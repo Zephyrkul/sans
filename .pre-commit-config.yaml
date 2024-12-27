@@ -22,7 +22,7 @@ repos:
         additional_dependencies:
             # required dependencies
         -   httpx ~= 0.23
-        -   importlib_metadata >= 1.4.0; python_version < "3.8"
+        -   importlib_metadata >= 1.4.0
 
             # optional dependencies
             # [lxml]
