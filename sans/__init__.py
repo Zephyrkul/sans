@@ -33,6 +33,7 @@ from .client import *
 from .errors import *
 from .limiter import RateLimiter as RateLimiter, TelegramLimiter as TelegramLimiter
 from .response import *
+from .sse import *
 from .url import *
 from .utils import *
 

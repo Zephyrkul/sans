@@ -35,6 +35,7 @@ repos:
         -   typing_extensions
         -   lxml-stubs @ https://github.com/lxml/lxml-stubs/archive/master.zip#egg=lxml-stubs
         -   anyio[trio]
+        -   orjson
 ci:
     autoupdate_schedule: quarterly
     skip:
