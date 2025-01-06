@@ -89,5 +89,5 @@ def RegionsDump(date: _date | None = None) -> httpx.URL:
     return API_URL.join(path)
 
 
-def CardsDump(season: Literal[1, "1", 2, "2", 3, "3"]) -> httpx.URL:
+def CardsDump(season: Literal[1, "1", 2, "2", 3, "3", 4, "4"]) -> httpx.URL:
     return API_URL.join(f"/pages/cardlist_S{season}.xml.gz")
