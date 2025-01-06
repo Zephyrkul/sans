@@ -10,6 +10,7 @@ except ModuleNotFoundError:
 from contextlib import AsyncExitStack, ExitStack
 from datetime import datetime, timezone
 from typing import AsyncIterator, Generic, Iterator, TypedDict, TypeVar
+from urllib.parse import quote
 
 from .client import AsyncClient, Client
 from .url import API_URL
@@ -33,6 +34,8 @@ def _decode_event(line: str) -> _SSEvent:
 
 
 class _SSIter(Generic[_ClientT]):
+    __slots__ = ("_client", "_url")
+
     def __init__(self, client: _ClientT, url: httpx.URL):
         self._client = client
         self._url = url
@@ -64,11 +67,16 @@ class _SSIter(Generic[_ClientT]):
                 if line.startswith("data: "):
                     yield _decode_event(line)
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__} client={self._client!r} url={self._url!r}"
+
 
 def serversent_events(client: _ClientT, *filters: str) -> _SSIter[_ClientT]:
     if not filters:
         raise TypeError("At least one filter is required.")
+    # use raw_path or httpx will do its own standards-compliant encoding
     url = API_URL.copy_with(
-        path="/api/" + "+".join("_".join(filter.split()) for filter in filters)
+        raw_path=b"/api/"
+        + quote("+".join(filters), safe="+: ").encode("ascii").replace(b" ", b"_")
     )
     return _SSIter(client, url)
