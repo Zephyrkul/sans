@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from email.message import Message
 from itertools import chain
-from typing import Any, AsyncIterator, Iterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator
 from xml.etree.ElementTree import Element
 
 import httpx
@@ -10,22 +10,34 @@ import httpx
 from .decoder import GZipDecoder, XMLChunker, XMLDecoder
 from .errors import narrow
 
-try:
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
     import xmltodict
-
-    HAS_XMLTODICT = True
-except ImportError:
-    HAS_XMLTODICT = False
-
-try:
     from lxml.etree import _Element
     from lxml.objectify import ObjectifiedElement
 
-    HAS_LXML = True
-except ImportError:
-    HAS_LXML = False
-else:
     from .decoder import LXMLDecoder, ObjectifyDecoder
+
+    HAS_XMLTODICT: bool = True
+    HAS_LXML: bool = True
+else:
+    try:
+        import xmltodict
+
+        HAS_XMLTODICT = True
+    except ModuleNotFoundError:
+        HAS_XMLTODICT = False
+
+    try:
+        from lxml.etree import _Element
+        from lxml.objectify import ObjectifiedElement
+
+        HAS_LXML = True
+    except ModuleNotFoundError:
+        HAS_LXML = False
+    else:
+        from .decoder import LXMLDecoder, ObjectifyDecoder
 
 __all__ = ["Response"]
 
@@ -111,8 +123,8 @@ class Response(httpx.Response):
                 self._objectified = decoder.flush()
             return self._objectified
 
-    def raise_for_status(self) -> None:
+    def raise_for_status(self) -> Self:
         try:
-            return super().raise_for_status()
+            return super().raise_for_status()  # type: ignore # httpx doesn't use typing.Self when it should
         except httpx.HTTPStatusError as exc:
             raise narrow(exc).with_traceback(exc.__traceback__) from None
