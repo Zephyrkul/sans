@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import httpx
+
 try:
     from orjson import loads
 except ModuleNotFoundError:
     from json import loads
 
-from contextlib import ExitStack
+from contextlib import AsyncExitStack, ExitStack
 from datetime import datetime, timezone
-from typing import AsyncIterator, Iterable, Iterator, TypedDict, overload
+from typing import AsyncIterator, Generic, Iterator, TypedDict, TypeVar
 
 from .client import AsyncClient, Client
 from .url import API_URL
 
 __all__ = ["serversent_events"]
+_ClientT = TypeVar("_ClientT", Client, AsyncClient, None)
 
 
 class _SSEvent(TypedDict):
@@ -29,44 +32,43 @@ def _decode_event(line: str) -> _SSEvent:
     return data
 
 
-@overload
-def serversent_events(client: Client | None, *filters: str) -> Iterator[_SSEvent]: ...
-@overload
-def serversent_events(
-    client: AsyncClient, *filters: str
-) -> AsyncIterator[_SSEvent]: ...
+class _SSIter(Generic[_ClientT]):
+    def __init__(self, client: _ClientT, url: httpx.URL):
+        self._client = client
+        self._url = url
 
-
-def serversent_events(
-    client: Client | AsyncClient | None,
-    *filters: str,
-) -> Iterator[_SSEvent] | AsyncIterator[_SSEvent]:
-    if isinstance(client, AsyncClient):
-        return _sse_async(client, filters)
-    return _sse_sync(client, filters)
-
-
-def _sse_sync(client: Client | None, filters: Iterable[str]) -> Iterator[_SSEvent]:
-    with ExitStack() as stack:
-        if client is None:
-            client = stack.enter_context(Client())
-        response = stack.enter_context(
-            client.stream(
-                "GET", API_URL.copy_with(path="/api/" + " ".join(filters)), timeout=None
+    def __iter__(self: _SSIter[Client] | _SSIter[None]) -> Iterator[_SSEvent]:
+        client, url = self._client, self._url
+        with ExitStack() as stack:
+            if client is None:
+                client = stack.enter_context(Client())
+            response = stack.enter_context(client.stream("GET", url, timeout=None))
+            response.raise_for_status()
+            yield from map(
+                _decode_event,
+                filter(lambda line: line.startswith("data: "), response.iter_lines()),
             )
-        )
-        yield from map(
-            _decode_event,
-            filter(lambda line: line.startswith("data: "), response.iter_lines()),
-        )
+
+    async def __aiter__(
+        self: _SSIter[AsyncClient] | _SSIter[None],
+    ) -> AsyncIterator[_SSEvent]:
+        client, url = self._client, self._url
+        async with AsyncExitStack() as stack:
+            if client is None:
+                client = await stack.enter_async_context(AsyncClient())
+            response = await stack.enter_async_context(
+                client.stream("GET", url, timeout=None)
+            )
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    yield _decode_event(line)
 
 
-async def _sse_async(
-    client: AsyncClient, filters: Iterable[str]
-) -> AsyncIterator[_SSEvent]:
-    async with client.stream(
-        "GET", API_URL.copy_with(path="/api/" + " ".join(filters)), timeout=None
-    ) as response:
-        async for line in response.aiter_lines():
-            if line.startswith("data: "):
-                yield _decode_event(line)
+def serversent_events(client: _ClientT, *filters: str) -> _SSIter[_ClientT]:
+    if not filters:
+        raise TypeError("At least one filter is required.")
+    url = API_URL.copy_with(
+        path="/api/" + "+".join("_".join(filter.split()) for filter in filters)
+    )
+    return _SSIter(client, url)
