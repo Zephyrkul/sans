@@ -123,8 +123,9 @@ class Response(httpx.Response):
                 self._objectified = decoder.flush()
             return self._objectified
 
-    def raise_for_status(self) -> Self:
+    def raise_for_status(self) -> Self:  # type: ignore
         try:
-            return super().raise_for_status()  # type: ignore # httpx doesn't use typing.Self when it should
+            super().raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise narrow(exc).with_traceback(exc.__traceback__) from None
+        return self
