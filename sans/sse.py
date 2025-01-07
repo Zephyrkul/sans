@@ -45,12 +45,21 @@ class _SSIter(Generic[_ClientT]):
         with ExitStack() as stack:
             if client is None:
                 client = stack.enter_context(Client())
-            response = stack.enter_context(client.stream("GET", url, timeout=None))
-            response.raise_for_status()
-            yield from map(
-                _decode_event,
-                filter(lambda line: line.startswith("data: "), response.iter_lines()),
-            )
+            while True:
+                with client.stream(
+                    "GET", url, extensions={"timeout": {"read": None}}
+                ) as response:
+                    response.raise_for_status()
+                    try:
+                        yield from map(
+                            _decode_event,
+                            filter(
+                                lambda line: line.startswith("data: "),
+                                response.iter_lines(),
+                            ),
+                        )
+                    except httpx.RemoteProtocolError:
+                        pass
 
     async def __aiter__(
         self: _SSIter[AsyncClient] | _SSIter[None],
@@ -59,13 +68,15 @@ class _SSIter(Generic[_ClientT]):
         async with AsyncExitStack() as stack:
             if client is None:
                 client = await stack.enter_async_context(AsyncClient())
-            response = await stack.enter_async_context(
-                client.stream("GET", url, timeout=None)
-            )
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    yield _decode_event(line)
+            while True:
+                async with client.stream("GET", url, timeout=None) as response:
+                    response.raise_for_status()
+                    try:
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                yield _decode_event(line)
+                    except httpx.RemoteProtocolError:
+                        pass
 
     def __repr__(self):
         return f"<{self.__class__.__name__} client={self._client!r} url={self._url!r}"
