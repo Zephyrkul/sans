@@ -59,6 +59,7 @@ class _SSIter(Generic[_ClientT]):
                             ),
                         )
                     except httpx.RemoteProtocolError:
+                        # Server timed out waiting for an event, try again
                         pass
 
     async def __aiter__(
@@ -78,6 +79,7 @@ class _SSIter(Generic[_ClientT]):
                             if line.startswith("data: "):
                                 yield _decode_event(line)
                     except httpx.RemoteProtocolError:
+                        # Server timed out waiting for an event, try again
                         pass
 
     def __repr__(self):
