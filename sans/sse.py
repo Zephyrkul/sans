@@ -69,7 +69,9 @@ class _SSIter(Generic[_ClientT]):
             if client is None:
                 client = await stack.enter_async_context(AsyncClient())
             while True:
-                async with client.stream("GET", url, timeout=None) as response:
+                async with client.stream(
+                    "GET", url, extensions={"timeout": {"read": None}}
+                ) as response:
                     response.raise_for_status()
                     try:
                         async for line in response.aiter_lines():
