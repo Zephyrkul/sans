@@ -71,12 +71,12 @@ class _SSIter(Generic[_ClientT]):
         return f"<{self.__class__.__name__} client={self._client!r} url={self._url!r}"
 
 
-def serversent_events(client: _ClientT, *filters: str) -> _SSIter[_ClientT]:
-    if not filters:
-        raise TypeError("At least one filter is required.")
+def serversent_events(client: _ClientT, *buckets: str) -> _SSIter[_ClientT]:
+    if not buckets:
+        raise TypeError("At least one bucket is required.")
     # use raw_path or httpx will do its own standards-compliant encoding
     url = API_URL.copy_with(
         raw_path=b"/api/"
-        + quote("+".join(filters), safe="+: ").encode("ascii").replace(b" ", b"_")
+        + quote("+".join(buckets), safe="+: ").encode("ascii").replace(b" ", b"_")
     )
     return _SSIter(client, url)
