@@ -101,7 +101,16 @@ root = sans.get(sans.Nation("testlandia", "packs"), auth=auth).xml
 limiter = sans.TelegramLimiter(recruitment=False)
 # The Telegram API can be used without a TelegramLimiter, but marking it ahead of time can save an API call.
 response = sans.get(sans.Telegram(client="abcd1234", tgid="1234", key="abcdef1234567890", to="testlandia"), auth=limiter)
-assert response.content = b"queued"
+assert response.content == b"queued"
+```
+
+### Server-Sent Events
+
+```py
+for event in sans.serversent_events(
+   client, "move", "founding", "cte", "member", "endo"
+).view(regions=["the north pacific"]):
+   print(event["str"])
 ```
 
 ## Command Line
