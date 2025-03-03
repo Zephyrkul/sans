@@ -13,6 +13,7 @@ from typing import AsyncIterator, Generic, Iterable, Iterator, TypedDict, TypeVa
 from urllib.parse import quote
 
 from ._client import AsyncClient, Client
+from ._eventsource import Event, EventSource
 from ._url import API_URL
 
 __all__ = ["serversent_events"]
@@ -47,9 +48,8 @@ class _SSEvent(TypedDict):
     time: datetime
 
 
-def _decode_event(line: str) -> _SSEvent:
-    assert line.startswith("data: ")
-    data = loads(line[6:])
+def _decode_event_data(event: Event) -> _SSEvent:
+    data = loads(event.data)
     data["id"] = int(data["id"])
     data["time"] = datetime.fromtimestamp(data["time"], tz=timezone.utc)
     return data
@@ -94,40 +94,17 @@ class _SSViewIter(Generic[_OptionalClientT]):
     def __iter__(self: _SSViewIter[Client] | _SSViewIter[None]) -> Iterator[_SSEvent]:
         url = self._url
         with _wrap_client(self._client) or Client() as client:
-            while True:
-                with client.stream(
-                    "GET", url, extensions={"timeout": {"read": None}}
-                ) as response:
-                    response.raise_for_status()
-                    try:
-                        yield from map(
-                            _decode_event,
-                            filter(
-                                lambda line: line.startswith("data: "),
-                                response.iter_lines(),
-                            ),
-                        )
-                    except httpx.RemoteProtocolError:
-                        # Server timed out waiting for an event, try again
-                        pass
+            del self
+            yield from map(_decode_event_data, EventSource(client, url=url))
 
     async def __aiter__(
         self: _SSViewIter[AsyncClient] | _SSViewIter[None],
     ) -> AsyncIterator[_SSEvent]:
         url = self._url
         async with _wrap_client(self._client) or AsyncClient() as client:
-            while True:
-                async with client.stream(
-                    "GET", url, extensions={"timeout": {"read": None}}
-                ) as response:
-                    response.raise_for_status()
-                    try:
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                yield _decode_event(line)
-                    except httpx.RemoteProtocolError:
-                        # Server timed out waiting for an event, try again
-                        pass
+            del self
+            async for event in EventSource(client, url=url):
+                yield _decode_event_data(event)
 
     def __repr__(self):
         return f"<{self.__class__.__name__} client={self._client!r} url={self._url!r}"
@@ -158,11 +135,11 @@ class _SSIter(_SSViewIter[_OptionalClientT]):
         """
         quoted = _quote_parameters(views, nations, regions)
         if not quoted:
-            raise ValueError("At least one view is required.")
+            raise TypeError("At least one view is required.")
         url = API_URL.copy_with(
             raw_path=b"/".join((self._url.raw_path, quoted.encode("ascii")))
         )
-        return _SSViewIter[_OptionalClientT](self._client, url)
+        return _SSViewIter(self._client, url)
 
 
 def serversent_events(
@@ -193,7 +170,7 @@ def serversent_events(
     """
     quoted = _quote_parameters(buckets, nations, regions)
     if not quoted:
-        raise TypeError("At least one bucket is required.")
+        raise ValueError("At least one bucket is required.")
     # use raw_path or httpx will do its own standards-compliant encoding
     url = API_URL.copy_with(raw_path=b"/api/" + quoted.encode("ascii"))
-    return _SSIter[_OptionalClientT](client, url)
+    return _SSIter(client, url)
