@@ -27,8 +27,8 @@ from httpx._types import (
     VerifyTypes,
 )
 
-from .limiter import RateLimiter
-from .response import Response
+from ._limiter import RateLimiter
+from ._response import Response
 
 __all__ = [
     "Client",

@@ -4,8 +4,8 @@ from typing import overload
 
 import httpx
 
-from .limiter import RateLimiter
-from .url import API_URL
+from ._limiter import RateLimiter
+from ._url import API_URL
 
 try:
     # guard against reloading

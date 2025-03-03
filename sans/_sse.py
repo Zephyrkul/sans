@@ -12,8 +12,8 @@ from itertools import chain
 from typing import AsyncIterator, Generic, Iterable, Iterator, TypedDict, TypeVar
 from urllib.parse import quote
 
-from .client import AsyncClient, Client
-from .url import API_URL
+from ._client import AsyncClient, Client
+from ._url import API_URL
 
 __all__ = ["serversent_events"]
 _T = TypeVar("_T")

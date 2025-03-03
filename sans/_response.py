@@ -7,8 +7,8 @@ from xml.etree.ElementTree import Element
 
 import httpx
 
-from .decoder import GZipDecoder, XMLChunker, XMLDecoder
-from .errors import narrow
+from ._decoder import GZipDecoder, XMLChunker, XMLDecoder
+from ._errors import narrow
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from lxml.etree import _Element
     from lxml.objectify import ObjectifiedElement
 
-    from .decoder import LXMLDecoder, ObjectifyDecoder
+    from ._decoder import LXMLDecoder, ObjectifyDecoder
 
     HAS_XMLTODICT: bool = True
     HAS_LXML: bool = True
@@ -49,7 +49,7 @@ class Response(httpx.Response):
             message = Message()
             content_type = self.headers.get("Content-Type")
             if content_type:
-                message["Content-Type"] = self.headers.get("Content-Type")
+                message["Content-Type"] = content_type
             self._content_type = message.get_content_type()
         return self._content_type
 

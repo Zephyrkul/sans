@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import codecs
 import zlib
-from functools import reduce
-from typing import Iterable
+from typing import Iterable, TypeVar
 from xml.etree.ElementTree import Element, XMLParser, XMLPullParser
 
+_T = TypeVar("_T")
 
-def _reducer(final: bool):
-    def inner(data: bytes, decoder: codecs.IncrementalDecoder) -> bytes:
-        return decoder.decode(data, final)  # type: ignore
 
-    return inner
+class NullIncrementalDecoder:
+    @staticmethod
+    def decode(input: _T, final: bool = False) -> _T:
+        return input
 
 
 class GZipDecoder:
@@ -38,22 +38,20 @@ class XMLDecoder:
 
 class XMLChunker:
     def __init__(self, *, encoding: str | None = None) -> None:
-        self._decoder_chain: list[codecs.IncrementalDecoder] = []
-        if encoding:
-            self._decoder_chain.append(
-                codecs.getincrementaldecoder(encoding)("replace")
-            )
+        self._decoder = (
+            codecs.getincrementaldecoder(encoding)("replace")
+            if encoding
+            else NullIncrementalDecoder
+        )
         self._pull_parser = XMLPullParser(["start", "end"])
         self._path: list[Element] = []
 
     def decode(self, data: bytes) -> Iterable[Element]:
-        data = reduce(_reducer(False), self._decoder_chain, data)
-        self._pull_parser.feed(data)
+        self._pull_parser.feed(self._decoder.decode(data, False))
         return self._read_events()
 
     def flush(self) -> Iterable[Element]:
-        data = reduce(_reducer(True), self._decoder_chain, b"")
-        self._pull_parser.feed(data)
+        self._pull_parser.feed(self._decoder.decode(b"", True))
         self._pull_parser.close()
         return self._read_events()
 

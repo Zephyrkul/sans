@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 import httpx
 
-from .limiter import RateLimiter
+from ._limiter import RateLimiter
 
 __all__ = [
     "Client",

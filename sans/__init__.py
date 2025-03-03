@@ -28,14 +28,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing_extensions import Literal
 
-from .auth import *
-from .client import *
-from .errors import *
-from .limiter import RateLimiter as RateLimiter, TelegramLimiter as TelegramLimiter
-from .response import *
-from .sse import *
-from .url import *
-from .utils import *
+from ._auth import *
+from ._client import *
+from ._errors import *
+from ._limiter import RateLimiter as RateLimiter, TelegramLimiter as TelegramLimiter
+from ._response import *
+from ._sse import *
+from ._url import *
+from ._utils import *
 
 if _sys.version_info < (3, 8):
     from importlib_metadata import metadata as _metadata

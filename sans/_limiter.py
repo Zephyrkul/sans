@@ -21,10 +21,10 @@ from typing import (
 import anyio
 import httpx
 
+from ._errors import AgentNotSetError
 from ._lock import ResetLock
-from .errors import AgentNotSetError
-from .response import Response
-from .url import API_URL
+from ._response import Response
+from ._url import API_URL
 
 if TYPE_CHECKING:
     pass
