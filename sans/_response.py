@@ -37,7 +37,7 @@ else:
     except ModuleNotFoundError:
         HAS_LXML = False
     else:
-        from .decoder import LXMLDecoder, ObjectifyDecoder
+        from ._decoder import LXMLDecoder, ObjectifyDecoder
 
 __all__ = ["Response"]
 
