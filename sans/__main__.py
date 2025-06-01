@@ -137,19 +137,19 @@ def _run_once(
         print("No query provided.", file=sys.stderr)
         return
     parameters: dict[str, list[str]] = {}
-    key = "q"
+    key = ""
     for arg in unknown:
         if arg.startswith("--"):
-            if key != "q":
+            if key:
                 print(
                     f"No value provided for key {key!r}",
                     file=sys.stderr,
                 )
             key = arg[2:]
         else:
-            parameters.setdefault(key, []).append(arg)
-            key = "q"
-    if key != "q":
+            parameters.setdefault(key or "q", []).append(arg)
+            key = ""
+    if key:
         print(f"No value provided for key {key!r}", file=sys.stderr)
     request = client.build_request(
         "GET", sans.World(**{k: " ".join(v) for k, v in parameters.items()})
