@@ -100,7 +100,7 @@ def View(*, nations: Iterable[str] = (), regions: Iterable[str] = ()) -> _Shard:
     return {}  # type: ignore
 
 
-def Range(__from: _QueryValueTypes, __to: _QueryValueTypes) -> _Shard:
+def Range(__from: str | int, __to: str | int) -> _Shard:
     return {
         "from": _primitive_value_to_str(__from),
         "to": _primitive_value_to_str(__to),
