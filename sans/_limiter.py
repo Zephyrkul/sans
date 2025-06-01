@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     pass
 
 __all__ = ["RateLimiter", "TelegramLimiter"]
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger("sans")
 _KT = TypeVar("_KT")
 _T = TypeVar("_T")
 
@@ -56,6 +56,14 @@ class _Backoff:
 _backoff = _Backoff()
 
 
+def _raw_headers(headers: httpx.Headers) -> list[tuple[str, str]]:
+    encoding = headers.encoding
+    return [
+        (key.decode(encoding, "replace"), value.decode(encoding, "replace"))
+        for key, value in headers.raw
+    ]
+
+
 # TODO: refactor I/O flows into multiple functions
 class RateLimiter(httpx.Auth):
     """
@@ -71,10 +79,28 @@ class RateLimiter(httpx.Auth):
         if not agent:
             raise AgentNotSetError("sans has no set agent")
         request.headers["User-Agent"] = agent
+        if LOG.isEnabledFor(logging.DEBUG):
+            log = [
+                f" > {request.method} {request.url.raw_path.decode('ascii', 'replace')} HTTP/1.1"
+            ]
+            for key, value in _raw_headers(request.headers):
+                log.append(f"{key}: {value}")
+            LOG.debug("\n > ".join(log))
         return request
 
     def _response_hook(self, response: httpx.Response) -> None:
         response_headers = response.headers
+        if LOG.isEnabledFor(logging.INFO):
+            log = [
+                f" < {response.request.method} {response.url.raw_path.decode('ascii', 'replace')} HTTP/1.1"
+            ]
+            if LOG.isEnabledFor(logging.DEBUG):
+                for key, value in _raw_headers(response_headers):
+                    log.append(f"{key}: {value}")
+                level = logging.DEBUG
+            else:
+                level = logging.INFO
+            LOG.log(level, "\n < ".join(log))
         # Retry-After is handled before this point
         xrlr = _get_as_int(response_headers, "RateLimit-Remaining", 1)
         if xrlr:
@@ -95,8 +121,8 @@ class RateLimiter(httpx.Auth):
     def sync_auth_flow(
         self, request: httpx.Request
     ) -> Generator[httpx.Request, httpx.Response, None]:
-        recruitment_delay: int | None = getattr(self, "_recruitment_delay", None)
-        is_telegram_limiter = recruitment_delay is not None
+        recruitment_delay: int = getattr(self, "_recruitment_delay", 0)
+        is_telegram_limiter = recruitment_delay > 0
         with ExitStack() as lock_stack:
             if request.headers["Host"] == API_URL.netloc.decode(
                 request.headers.encoding
@@ -140,7 +166,7 @@ class RateLimiter(httpx.Auth):
                     if status == 429:
                         retry = _get_as_int(_sent.headers, "Retry-After", 0)
                         if retry:
-                            LOG.info("Ratelimit hit, retrying in %s seconds.", retry)
+                            LOG.warning("Ratelimit hit, retrying in %s seconds.", retry)
                             remaining = _get_as_int(
                                 _sent.headers, "Ratelimit-Remaining", 0
                             )
@@ -209,8 +235,8 @@ class RateLimiter(httpx.Auth):
     async def async_auth_flow(
         self, request: httpx.Request
     ) -> AsyncGenerator[httpx.Request, httpx.Response]:
-        recruitment_delay: int | None = getattr(self, "_recruitment_delay", None)
-        is_telegram_limiter = recruitment_delay is not None
+        recruitment_delay: int = getattr(self, "_recruitment_delay", 0)
+        is_telegram_limiter = recruitment_delay > 0
         async with AsyncExitStack() as lock_stack:
             if request.headers["Host"] == API_URL.netloc.decode(
                 request.headers.encoding
@@ -325,7 +351,7 @@ class RateLimiter(httpx.Auth):
 
 class TelegramLimiter(RateLimiter):
     _lock: ClassVar = ResetLock()
-    _last_request: ClassVar[float | None] = None
+    _last_request: ClassVar[float] = time.monotonic() - 180
 
     def __init__(self, *, recruitment: bool) -> None:
         super().__init__()
