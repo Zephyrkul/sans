@@ -58,7 +58,7 @@ class XMLChunker:
     def _read_events(self) -> Iterable[Element]:
         element: Element
         path = self._path
-        for event, element in self._pull_parser.read_events():
+        for event, element in self._pull_parser.read_events():  # type: ignore
             if event == "start":
                 path.append(element)
             elif event == "end":

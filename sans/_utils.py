@@ -75,7 +75,7 @@ if sys.version_info < (3, 9):
         tree: etree.Element | etree.ElementTree, space: str = "  ", level: int = 0
     ):
         if isinstance(tree, etree.ElementTree):
-            tree = tree.getroot()
+            tree = tree.getroot()  # type: ignore
         assert isinstance(tree, etree.Element)
         if level < 0:
             raise ValueError(f"Initial indentation level must be >= 0, got {level}")
