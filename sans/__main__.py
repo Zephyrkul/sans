@@ -8,8 +8,7 @@ import shlex
 import sys
 from contextlib import redirect_stdout
 from getpass import getpass
-from operator import methodcaller
-from typing import TYPE_CHECKING, Any, Callable, NoReturn as Never
+from typing import TYPE_CHECKING, Any, NoReturn as Never
 from xml.etree import ElementTree as ET
 
 import sans
@@ -45,7 +44,7 @@ MAIN_LOG = logging.getLogger("sans.__main__")
 SANS_LOG = logging.getLogger("sans")
 ROOT_LOG = logging.getLogger()
 
-SANS_LOG.setLevel(logging.WARNING)
+SANS_LOG.setLevel(logging.ERROR)
 
 
 class _ReInput:
@@ -105,100 +104,79 @@ def main() -> Never:
         "--version", action="version", version=f"{parser.prog} {sans.__version__}"
     )
     reinput = _ReInput(parser)
-    agent: str = ""
     auth = sans.NSAuth()  # type: ignore
-    decoder: Callable[[bytes], str] = methodcaller(
-        "decode", encoding=sys.stderr.encoding, errors="replace"
-    )
     with sans.Client() as client:
         while True:
             with reinput as (known, unknown):
-                level = max(
-                    logging.DEBUG, logging.WARNING - logging.DEBUG * known.verbose
+                _run_once(client, auth, known, unknown)
+
+
+def _run_once(
+    client: sans.Client,
+    auth: sans.NSAuth,
+    known: argparse.Namespace,
+    unknown: list[str],
+) -> None:
+    level = max(logging.DEBUG, logging.ERROR - logging.DEBUG * known.verbose)
+    SANS_LOG.setLevel(level)
+    ROOT_LOG.setLevel(level + logging.DEBUG)
+    if known.auth:
+        auth.autologin = None
+        auth.password = getpass()
+    if known.agent:
+        try:
+            agent = sans.set_agent(known.agent)
+            print(f"Agent set: {agent}", file=sys.stderr)
+        except RuntimeError:
+            print(
+                "You can't change the agent in the middle of the script.",
+                file=sys.stderr,
+            )
+    if not unknown:
+        if known.quit:
+            print("No query provided. Exiting...", file=sys.stderr)
+            sys.exit(0)
+        print("No query provided.", file=sys.stderr)
+        return
+    parameters: dict[str, list[str]] = {}
+    key = "q"
+    for arg in unknown:
+        if arg.startswith("--"):
+            if key != "q":
+                print(
+                    f"No value provided for key {key!r}",
+                    file=sys.stderr,
                 )
-                SANS_LOG.setLevel(level)
-                ROOT_LOG.setLevel(level + logging.DEBUG)
-                if known.auth:
-                    auth.autologin = None
-                    auth.password = getpass()
-                if known.agent:
-                    try:
-                        agent = sans.set_agent(known.agent)
-                        print(f"Agent set: {agent}", file=sys.stderr)
-                    except RuntimeError:
-                        print(
-                            "You can't change the agent in the middle of the script.",
-                            file=sys.stderr,
-                        )
-                if not unknown:
-                    if known.quit:
-                        print("No query provided. Exiting...", file=sys.stderr)
-                        sys.exit(0)
-                    print("No query provided.", file=sys.stderr)
-                    continue
-                parameters: dict[str, list[str]] = {}
-                key = "q"
-                for arg in unknown:
-                    if arg.startswith("--"):
-                        if key != "q":
-                            print(
-                                f"No value provided for key {key!r}",
-                                file=sys.stderr,
-                            )
-                        key = arg[2:]
-                    else:
-                        parameters.setdefault(key, []).append(arg)
-                        key = "q"
-                if key != "q":
-                    print(f"No value provided for key {key!r}", file=sys.stderr)
-                request = client.build_request(
-                    "GET",
-                    sans.World(**{k: " ".join(v) for k, v in parameters.items()}),
-                    headers={"User-Agent": agent},
-                )
-                if known.verbose:
-                    print(
-                        f"> {request.method} {decoder(request.url.raw_path)} HTTP/1.1",
-                        file=sys.stderr,
-                    )
-                    for key, value in request.headers.raw:
-                        print(
-                            f"> {decoder(key)}: {decoder(value)}",
-                            file=sys.stderr,
-                        )
-                    print(">", file=sys.stderr)
-                response = client.send(request, auth=auth, stream=True)
-                try:
-                    if known.verbose:
-                        print(
-                            f"< HTTP/1.1 {response.status_code} {response.reason_phrase}",
-                            file=sys.stderr,
-                        )
-                        for key, value in response.headers.raw:
-                            print(
-                                f"< {decoder(key)}: {decoder(value)}",
-                                file=sys.stderr,
-                            )
-                        print("<", file=sys.stderr)
-                    response.read()
-                finally:
-                    response.close()
-                if response.content_type == "text/xml":
-                    pretty_print(response.xml)
-                elif response.content_type.startswith("text/"):
-                    print(
-                        Syntax(
-                            response.text,
-                            response.content_type.partition("/")[2],
-                            background_color="default",
-                            word_wrap=True,
-                        )
-                    )
-                else:
-                    print(response.content)
-                if known.quit:
-                    print("Exiting...", file=sys.stderr)
-                    sys.exit(0)
+            key = arg[2:]
+        else:
+            parameters.setdefault(key, []).append(arg)
+            key = "q"
+    if key != "q":
+        print(f"No value provided for key {key!r}", file=sys.stderr)
+    request = client.build_request(
+        "GET", sans.World(**{k: " ".join(v) for k, v in parameters.items()})
+    )
+    response = client.send(request, auth=auth, stream=True)
+    try:
+        response.read()
+    finally:
+        response.close()
+    if response.content_type == "text/xml":
+        pretty_print(response.xml)
+    elif response.content_type.startswith("text/"):
+        print(
+            Syntax(
+                response.text,
+                response.content_type.partition("/")[2],
+                background_color="default",
+                word_wrap=True,
+            )
+        )
+    else:
+        print(response.content)
+    if known.quit:
+        print("Exiting...", file=sys.stderr)
+        sys.exit(0)
 
 
 def pretty_print(element: ET.Element, *, space: str = "  ") -> None:
