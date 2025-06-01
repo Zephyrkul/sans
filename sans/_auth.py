@@ -72,7 +72,9 @@ class NSAuth(RateLimiter):
                 # coerce a POST request
                 headers.pop("Content-Type", None)
                 headers.pop("Content-Length", None)
-                request = httpx.Request("POST", API_URL, headers=headers, data=params)
+                request = httpx.Request(
+                    "POST", API_URL, headers=headers, data=dict(params)
+                )
         return super()._request_hook(request)
 
     def _response_hook(self, response: httpx.Response) -> None:
