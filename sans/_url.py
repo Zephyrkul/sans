@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date as _date
-from typing import TYPE_CHECKING, Iterable, Mapping, NewType
+from typing import TYPE_CHECKING, Iterable, Mapping, NewType, overload
 
 import httpx
 
@@ -89,15 +89,27 @@ def Shard(q: str, **parameters: _QueryValueTypes) -> _Shard:
     return parameters  # type: ignore
 
 
+@overload
+def View(*, nations: Iterable[str]) -> _Shard: ...
+@overload
+def View(*, regions: Iterable[str]) -> _Shard: ...
+
+
 def View(*, nations: Iterable[str] = (), regions: Iterable[str] = ()) -> _Shard:
-    nations = ",".join((nations,) if isinstance(nations, str) else nations)
-    regions = ",".join((regions,) if isinstance(regions, str) else regions)
-    view = " ".join(
-        filter(None, (nations.replace(" ", "_"), regions.replace(" ", "_")))
-    )
-    if view:
-        return {"view": view}  # type: ignore
-    return {}  # type: ignore
+    if bool(nations) is bool(regions):
+        raise TypeError("View requires exactly one of either nations or regions")
+    if nations:
+        nations = "nation:" + ",".join(
+            (nations,) if isinstance(nations, str) else nations
+        )
+        return {"view": nations}  # type: ignore
+    if regions:
+        regions = "region:" + ",".join(
+            (regions,) if isinstance(regions, str) else regions
+        )
+        return {"view": regions}  # type: ignore
+
+    raise AssertionError("Unreachable code")
 
 
 def Range(__from: str | int, __to: str | int) -> _Shard:
