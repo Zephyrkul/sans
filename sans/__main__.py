@@ -44,8 +44,6 @@ MAIN_LOG = logging.getLogger("sans.__main__")
 SANS_LOG = logging.getLogger("sans")
 ROOT_LOG = logging.getLogger()
 
-SANS_LOG.setLevel(logging.ERROR)
-
 
 class _ReInput:
     def __init__(self, parser: argparse.ArgumentParser) -> None:
