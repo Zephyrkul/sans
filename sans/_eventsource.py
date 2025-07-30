@@ -133,7 +133,7 @@ class EventSource(Generic[_ClientT]):
                 if line is None:
                     event = InvalidState
                     continue
-                field, colon, value = line[:-1].partition(":")
+                field, colon, value = line.partition(":")
                 del line
                 value = _removeprefix(value, " ")
 
@@ -189,10 +189,10 @@ class EventSource(Generic[_ClientT]):
                 raise InvalidStateError(
                     f"{self.__class__.__name__} is already running!"
                 )
-        except StopIteration as exc:
+        except StopIteration:
             raise InvalidStateError(
                 f"{self.__class__.__name__} was already closed!"
-            ) from exc
+            ) from None
         try:
             while True:
                 request: httpx.Request = client.build_request("GET", **request_args)  # type: ignore (reportCallIssue)
@@ -234,10 +234,10 @@ class EventSource(Generic[_ClientT]):
                 raise InvalidStateError(
                     f"{self.__class__.__name__} is already running!"
                 )
-        except StopIteration as exc:
+        except StopIteration:
             raise InvalidStateError(
                 f"{self.__class__.__name__} was already closed!"
-            ) from exc
+            ) from None
         try:
             while True:
                 request: httpx.Request = client.build_request("GET", **request_args)  # type: ignore (reportCallIssue)
