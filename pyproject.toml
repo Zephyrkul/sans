@@ -34,7 +34,7 @@
         'Typing :: Typed',
     ]
     dependencies = [
-        'httpx ~= 0.23',
+        'httpx ~= 0.24',
         'importlib_metadata >= 1.4.0; python_version < "3.8"',
     ]
     dynamic = ['version']
