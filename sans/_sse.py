@@ -1,20 +1,31 @@
 from __future__ import annotations
 
-import httpx
-
-try:
-    from orjson import loads
-except ModuleNotFoundError:
-    from json import loads
-
 from datetime import datetime, timezone
 from itertools import chain
-from typing import AsyncIterator, Generic, Iterable, Iterator, TypedDict, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    AsyncIterator,
+    Generic,
+    Iterable,
+    Iterator,
+    TypedDict,
+    TypeVar,
+)
 from urllib.parse import quote
+
+import httpx
 
 from ._client import AsyncClient, Client
 from ._eventsource import Event, EventSource
 from ._url import API_URL
+
+if TYPE_CHECKING:
+    from json import loads
+else:
+    try:
+        from orjson import loads
+    except ModuleNotFoundError:
+        from json import loads
 
 __all__ = ["serversent_events"]
 _T = TypeVar("_T")
@@ -44,6 +55,7 @@ class _nullcontext(Generic[_T]):
 
 class _SSEvent(TypedDict):
     str: str
+    htmlStr: str
     id: int
     time: datetime
 
