@@ -34,7 +34,7 @@
         'Typing :: Typed',
     ]
     dependencies = [
-        'httpx ~= 0.24',
+        'httpx >= 0.24, < 0.29.0',
         'importlib_metadata >= 1.4.0; python_version < "3.8"',
     ]
     dynamic = ['version']
@@ -55,8 +55,8 @@
 
 [project.optional-dependencies]
     docs = ['Sphinx ~= 5.3']
-    lxml = ['lxml ~= 4.9']
-    json = ['xmltodict ~= 0.13']
+    lxml = ['lxml ~= 5.0']
+    json = ['xmltodict ~= 0.14']
 
 [tool.setuptools_scm]
 
