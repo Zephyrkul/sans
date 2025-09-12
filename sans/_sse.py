@@ -58,6 +58,7 @@ class _SSEvent(TypedDict):
     htmlStr: str
     id: int
     time: datetime
+    buckets: list[str]
 
 
 def _decode_event_data(event: Event) -> _SSEvent:
