@@ -21,6 +21,7 @@ from ._url import API_URL
 
 if TYPE_CHECKING:
     from json import loads
+    from typing_extensions import NotRequired
 else:
     try:
         from orjson import loads
@@ -53,12 +54,13 @@ class _nullcontext(Generic[_T]):
         pass
 
 
-class _SSEvent(TypedDict):
+class _SSEvent(TypedDict, total=True):
     str: str
     htmlStr: str
     id: int
     time: datetime
     buckets: list[str]
+    rmbMessage: NotRequired[str]
 
 
 def _decode_event_data(event: Event) -> _SSEvent:
