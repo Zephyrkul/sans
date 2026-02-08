@@ -66,7 +66,7 @@ class _SSEvent(TypedDict, total=True):
 def _decode_event_data(event: Event) -> _SSEvent:
     data = loads(event.data)
     data["id"] = int(data["id"])
-    data["time"] = datetime.fromtimestamp(data["time"], tz=timezone.utc)
+    data["time"] = datetime.fromtimestamp(float(data["time"]), tz=timezone.utc)
     return data
 
 
