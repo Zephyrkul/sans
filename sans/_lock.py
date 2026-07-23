@@ -11,8 +11,15 @@ from operator import add
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 import anyio
-import sniffio
 from anyio.lowlevel import cancel_shielded_checkpoint, checkpoint_if_cancelled
+
+try:
+    from sniffio import current_async_library
+except ImportError:
+
+    def current_async_library():
+        return "asyncio"
+
 
 if TYPE_CHECKING:
     from typing_extensions import TypeVarTuple, Unpack
@@ -134,7 +141,7 @@ class ResetLock:
         acquire = self._lock.acquire
         waiters = self._waiters
         sleep_forever: Callable[[deque[Callable[[], Any]]], Awaitable[None]] = (
-            globals()[f"_{sniffio.current_async_library()}_sleep_forever"]
+            globals()[f"_{current_async_library()}_sleep_forever"]
         )
         await checkpoint_if_cancelled()
         if not waiters:
