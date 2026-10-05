@@ -34,25 +34,27 @@ If you need help with using sans, find a bug, or have a feature request, feel fr
 import sans
 from xml.etree import ElementTree as ET
 
-def main():
-   sans.set_agent("Darcania")
-   request = sans.Nation(
-      "darcania",
-      "fullname population flag census",
-      mode="score",
-      scale="65 66",
-   )
-   root = sans.get(request).xml
-   sans.indent(root)
-   print(ET.tostring(root, encoding="unicode"))
 
-   with sans.stream("GET", sans.RegionsDump()) as response:
-      for region in response.iter_xml():
-         sans.indent(region)
-         print(ET.tostring(region, encoding="unicode"))
+def main():
+    sans.set_agent("Darcania")
+    request = sans.Nation(
+        "darcania",
+        "fullname population flag census",
+        mode="score",
+        scale="65 66",
+    )
+    root = sans.get(request).xml
+    sans.indent(root)
+    print(ET.tostring(root, encoding="unicode"))
+
+    with sans.stream("GET", sans.RegionsDump()) as response:
+        for region in response.iter_xml():
+            sans.indent(region)
+            print(ET.tostring(region, encoding="unicode"))
+
 
 if __name__ == "__main__":
-   main()
+    main()
 ```
 
 ### Asynchronous
@@ -62,26 +64,28 @@ import asyncio
 import sans
 from xml.etree import ElementTree as ET
 
-async def main():
-   sans.set_agent("Darcania")
-   async with sans.AsyncClient() as client:
-      request = sans.Nation(
-         "darcania",
-         "fullname population flag census",
-         mode="score",
-         scale="65 66",
-      )
-      root = (await client.get(request)).xml
-      sans.indent(root)
-      print(ET.tostring(root, encoding="unicode"))
 
-      async with client.stream("GET", sans.RegionsDump()) as response:
-         async for region in response.aiter_xml():
-            sans.indent(region)
-            print(ET.tostring(region, encoding="unicode"))
+async def main():
+    sans.set_agent("Darcania")
+    async with sans.AsyncClient() as client:
+        request = sans.Nation(
+            "darcania",
+            "fullname population flag census",
+            mode="score",
+            scale="65 66",
+        )
+        root = (await client.get(request)).xml
+        sans.indent(root)
+        print(ET.tostring(root, encoding="unicode"))
+
+        async with client.stream("GET", sans.RegionsDump()) as response:
+            async for region in response.aiter_xml():
+                sans.indent(region)
+                print(ET.tostring(region, encoding="unicode"))
+
 
 if __name__ == "__main__":
-   asyncio.run(main())
+    asyncio.run(main())
 ```
 
 ### Authentication
@@ -100,7 +104,12 @@ root = sans.get(sans.Nation("testlandia", "packs"), auth=auth).xml
 ```py
 limiter = sans.TelegramLimiter(recruitment=False)
 # The Telegram API can be used without a TelegramLimiter, but marking it ahead of time can save an API call.
-response = sans.get(sans.Telegram(client="abcd1234", tgid="1234", key="abcdef1234567890", to="testlandia"), auth=limiter)
+response = sans.get(
+    sans.Telegram(
+        client="abcd1234", tgid="1234", key="abcdef1234567890", to="testlandia"
+    ),
+    auth=limiter,
+)
 assert response.content == b"queued"
 ```
 
@@ -108,9 +117,9 @@ assert response.content == b"queued"
 
 ```py
 for event in sans.serversent_events(
-   client, "move", "founding", "cte", "member", "endo"
+    client, "move", "founding", "cte", "member", "endo"
 ).view(regions=["the north pacific"]):
-   print(event["str"])
+    print(event["str"])
 ```
 
 ## Command Line
